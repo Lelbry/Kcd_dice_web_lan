@@ -5,7 +5,13 @@ export class Store {
     this.myPlayerId = null;
     this.connected = false;
     this.lastEvent = null;
+    this.rolling = false;
     this.listeners = [];
+  }
+
+  setRolling(v) {
+    this.rolling = v;
+    this._notify();
   }
 
   subscribe(fn) {

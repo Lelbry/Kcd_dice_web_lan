@@ -50,17 +50,32 @@ const net = new Net(wsUrl, {
   },
 });
 
+let rollAnimTimer = null;
+function triggerRollAnimation() {
+  store.setRolling(true);
+  if (rollAnimTimer) clearTimeout(rollAnimTimer);
+  rollAnimTimer = setTimeout(() => {
+    store.setRolling(false);
+  }, 650);
+}
+
 function handleEvent(ev) {
   if (!ev?.type) return;
   if (ev.type === 'joined') {
     store.setMyPlayerId(ev.playerId);
     return;
   }
+  if (ev.type === 'rolled') {
+    triggerRollAnimation();
+    return;
+  }
   if (ev.type === 'farkle') {
-    showOverlay('ЗОНК!', 'farkle', 1700);
+    triggerRollAnimation();
+    setTimeout(() => showOverlay('ЗОНК!', 'farkle', 1500), 350);
     return;
   }
   if (ev.type === 'hotdice') {
+    triggerRollAnimation();
     showOverlay('HOT DICE!', 'hotdice', 1400);
     return;
   }
@@ -68,6 +83,9 @@ function handleEvent(ev) {
     const winner = store.state?.players.find((p) => p.id === ev.playerId);
     const txt = winner ? `${winner.name} победил!` : 'Победа!';
     showOverlay(txt, 'won', 2500);
+    return;
+  }
+  if (ev.type === 'banked') {
     return;
   }
   if (ev.type === 'reconnected') {

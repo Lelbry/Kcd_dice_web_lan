@@ -163,10 +163,14 @@ function renderDice(state, store) {
     const selected = store.selection.has(i);
     const classes = [];
     if (selected) classes.push('selected');
-    if (!isMine || blocked) classes.push('disabled');
+    if (!isMine || blocked || store.rolling) classes.push('disabled');
+    if (store.rolling) classes.push('rolling');
     const el = dieElement(v, classes);
     el.dataset.idx = String(i);
-    if (isMine && !blocked) {
+    if (store.rolling) {
+      el.style.animationDelay = `${i * 40}ms`;
+    }
+    if (isMine && !blocked && !store.rolling) {
       el.addEventListener('click', () => store.toggleSelection(i));
     }
     area.appendChild(el);
