@@ -242,6 +242,16 @@ html, body {
 .score-table th.current { text-shadow: 0 0 8px currentColor; }
 .score-table .total-row td { font-size: 24px; font-weight: 700; }
 .score-table .label { font-size: 11px; color: var(--cream-dim); text-transform: lowercase; }
+.offline-dot {
+  color: var(--danger);
+  font-size: 10px;
+  margin-left: 4px;
+  animation: pulse-offline 1.6s ease-in-out infinite;
+}
+@keyframes pulse-offline {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
 
 /* Actions */
 .actions-panel {

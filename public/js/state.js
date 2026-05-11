@@ -50,7 +50,6 @@ export class Store {
 
   setLastEvent(ev) {
     this.lastEvent = ev;
-    this._notify();
   }
 
   toggleSelection(idx) {

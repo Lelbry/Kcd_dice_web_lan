@@ -110,14 +110,17 @@ function renderScorePanel(state, store) {
   const isP1Turn = state.currentPlayerId === p1.id;
   const isP2Turn = state.currentPlayerId === p2.id;
 
+  const offlineMark = (p) => p.connected ? '' : ' <span class="offline-dot" title="нет связи">●</span>';
+  const youMark = (p) => p.id === store.myPlayerId ? ' (вы)' : '';
+
   const table = document.createElement('table');
   table.className = 'score-table';
   table.innerHTML = `
     <thead>
       <tr>
-        <th class="p1 ${isP1Turn ? 'current' : ''}">${escapeHtml(p1.name)}${p1.id === store.myPlayerId ? ' (вы)' : ''}</th>
+        <th class="p1 ${isP1Turn ? 'current' : ''}">${escapeHtml(p1.name)}${youMark(p1)}${offlineMark(p1)}</th>
         <th class="mid">Цель</th>
-        <th class="p2 ${isP2Turn ? 'current' : ''}">${escapeHtml(p2.name)}${p2.id === store.myPlayerId ? ' (вы)' : ''}</th>
+        <th class="p2 ${isP2Turn ? 'current' : ''}">${escapeHtml(p2.name)}${youMark(p2)}${offlineMark(p2)}</th>
       </tr>
     </thead>
     <tbody>
