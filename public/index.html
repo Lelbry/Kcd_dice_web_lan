@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Кости — KCD2</title>
+  <link rel="stylesheet" href="/styles/main.css" />
+  <link rel="stylesheet" href="/styles/dice.css" />
+</head>
+<body>
+  <div id="app">
+    <header class="topbar">
+      <div class="brand">Кости <span class="subtle">— KCD2</span></div>
+      <button id="log-toggle" class="ghost">Лог</button>
+    </header>
+
+    <section id="lobby" class="screen" hidden>
+      <div class="lobby-card">
+        <h1>Лобби</h1>
+        <div class="form-row">
+          <label for="name-input">Имя:</label>
+          <input id="name-input" type="text" maxlength="20" />
+          <button id="set-name-btn" class="primary">Сохранить</button>
+        </div>
+        <div class="lobby-players" id="lobby-players"></div>
+        <div class="form-row">
+          <label for="target-select">Цель:</label>
+          <select id="target-select"></select>
+          <button id="start-btn" class="primary">Начать игру</button>
+        </div>
+        <p class="hint">Запустите сервер на хосте, второй игрок открывает <code>http://&lt;radmin-ip&gt;:8080</code>.</p>
+      </div>
+    </section>
+
+    <section id="game" class="screen" hidden>
+      <div class="game-table">
+        <div class="locked-tray empty" id="locked-tray"></div>
+        <div class="dice-area" id="dice-area"></div>
+        <div class="overlay" id="overlay" hidden></div>
+      </div>
+
+      <div class="bottom-bar">
+        <div class="score-panel" id="score-panel"></div>
+        <div class="actions-panel" id="actions-panel">
+          <button class="action-btn" data-action="roll">
+            <span class="label">Бросить кости</span>
+            <span class="hotkey">SPACE</span>
+          </button>
+          <button class="action-btn primary" data-action="score-and-roll" hidden>
+            <span class="label">Записать и продолжить</span>
+            <span class="hotkey">F</span>
+          </button>
+          <button class="action-btn" data-action="score-and-bank" hidden>
+            <span class="label">Записать и закончить ход</span>
+            <span class="hotkey">Q</span>
+          </button>
+          <button class="action-btn ghost" data-action="help">
+            <span class="label">Помощь</span>
+            <span class="hotkey">T</span>
+          </button>
+        </div>
+      </div>
+
+      <aside class="log-panel collapsed" id="log-panel">
+        <div class="log-list"></div>
+      </aside>
+    </section>
+
+    <div class="modal" id="finished-modal" hidden>
+      <div class="modal-inner">
+        <h2 id="winner-text">Победа!</h2>
+        <button id="new-game-btn" class="primary">Новая игра</button>
+      </div>
+    </div>
+
+    <div class="modal" id="help-modal" hidden>
+      <div class="modal-inner help-inner">
+        <h2>Правила</h2>
+        <div class="combos">
+          <div><span class="combo-name">Одиночная «1»</span><span>100</span></div>
+          <div><span class="combo-name">Одиночная «5»</span><span>50</span></div>
+          <div><span class="combo-name">Три «1»</span><span>1000</span></div>
+          <div><span class="combo-name">Три N (N=2..6)</span><span>N × 100</span></div>
+          <div><span class="combo-name">4 одинаковых</span><span>×2 от тройки</span></div>
+          <div><span class="combo-name">5 одинаковых</span><span>×4 от тройки</span></div>
+          <div><span class="combo-name">6 одинаковых</span><span>×8 от тройки</span></div>
+          <div><span class="combo-name">Стрит 1-5</span><span>500</span></div>
+          <div><span class="combo-name">Стрит 2-6</span><span>750</span></div>
+          <div><span class="combo-name">Стрит 1-6</span><span>1500</span></div>
+        </div>
+        <p class="muted">Зонк (нет зачётных): очки хода сгорают, ход переходит. Hot dice (все 6 зачётные): обязательный переролл всех 6. Победа: первый, у кого после фиксации очки ≥ цели.</p>
+        <button data-close-modal class="primary">Закрыть</button>
+      </div>
+    </div>
+
+    <div id="reconnect-banner" hidden>Соединение прервано, переподключение…</div>
+  </div>
+
+  <script type="module" src="/js/main.js"></script>
+</body>
+</html>
