@@ -1,0 +1,18 @@
+{
+  "name": "kcd2-dice-web-lan",
+  "version": "0.1.0",
+  "description": "KCD2-style dice game in the browser, 2 players over LAN/Radmin VPN",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node server/index.js",
+    "test": "node --test tests/"
+  },
+  "dependencies": {
+    "express": "^4.21.0",
+    "ws": "^8.18.0"
+  },
+  "license": "MIT"
+}
