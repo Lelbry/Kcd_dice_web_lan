@@ -56,8 +56,8 @@ test('six 1s = 8000', () => {
   assert.equal(scoreSelection([1, 1, 1, 1, 1, 1]).score, 8000);
 });
 
-test('four 3s = 1200', () => {
-  assert.equal(scoreSelection([3, 3, 3, 3]).score, 1200);
+test('four 3s = 600', () => {
+  assert.equal(scoreSelection([3, 3, 3, 3]).score, 600);
 });
 
 test('five 2s = 800', () => {
