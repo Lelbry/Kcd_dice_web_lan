@@ -50,13 +50,42 @@ const net = new Net(wsUrl, {
   },
 });
 
+const ROLL_DURATION_MS = 2000;
 let rollAnimTimer = null;
+let rollSwapInterval = null;
+let rollAudio = null;
+
 function triggerRollAnimation() {
+  // Звук взбалтывания и броска (~2 сек). Создаём новый Audio каждый раз,
+  // чтобы можно было перекрывать броски без ожидания загрузки.
+  try {
+    if (rollAudio) {
+      try { rollAudio.pause(); } catch {}
+    }
+    rollAudio = new Audio('/sounds/ShakeAndThrow.mp3');
+    rollAudio.volume = 0.9;
+    rollAudio.play().catch(() => {
+      // autoplay может быть заблокирован до первого клика — игнорируем
+    });
+  } catch {}
+
   store.setRolling(true);
+
+  // Перерисовки каждые 80 мс — кубики «трясутся» (рандомные грани в renderDice)
+  if (rollSwapInterval) clearInterval(rollSwapInterval);
+  rollSwapInterval = setInterval(() => {
+    // Лёгкий пинок store для re-render
+    store._notify();
+  }, 80);
+
   if (rollAnimTimer) clearTimeout(rollAnimTimer);
   rollAnimTimer = setTimeout(() => {
+    if (rollSwapInterval) {
+      clearInterval(rollSwapInterval);
+      rollSwapInterval = null;
+    }
     store.setRolling(false);
-  }, 650);
+  }, ROLL_DURATION_MS);
 }
 
 function handleEvent(ev) {
@@ -70,13 +99,15 @@ function handleEvent(ev) {
     return;
   }
   if (ev.type === 'farkle') {
-    triggerRollAnimation();
-    setTimeout(() => showOverlay('ЗОНК!', 'farkle', 1500), 350);
+    // Сначала кубики долбятся 2с и приземляются на свой провальный расклад,
+    // потом всплывает «ЗОНК!» — игрок видит, что выпало.
+    setTimeout(() => showOverlay('ЗОНК!', 'farkle', 1400), ROLL_DURATION_MS);
     return;
   }
   if (ev.type === 'hotdice') {
     triggerRollAnimation();
-    showOverlay('HOT DICE!', 'hotdice', 1400);
+    // HOT DICE! всплывает после settle новых 6 кубиков
+    setTimeout(() => showOverlay('HOT DICE!', 'hotdice', 1400), ROLL_DURATION_MS);
     return;
   }
   if (ev.type === 'won') {

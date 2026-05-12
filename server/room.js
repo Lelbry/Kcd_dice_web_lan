@@ -10,7 +10,7 @@ import {
 } from './protocol.js';
 import { rollBotPersona, moodLabel } from './bot.js';
 
-const FARKLE_PASS_DELAY_MS = 1800;
+const FARKLE_PASS_DELAY_MS = 3500;
 const RECONNECT_GRACE_MS = 60_000;
 const HISTORY_LIMIT = 50;
 const MAX_PLAYERS = 2;

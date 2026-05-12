@@ -188,10 +188,19 @@ export function decideBotAction(snapshot, bot, rng = Math.random) {
  * Хук — `room._onStateChanged = () => driver.tick()`.
  */
 export class BotDriver {
-  constructor(room, { delayMinMs = 600, delayMaxMs = 1400 } = {}) {
+  constructor(room, {
+    firstRollDelayMinMs = 600,
+    firstRollDelayMaxMs = 1200,
+    // После броска бот ждёт, пока на клиенте отыграется звук/анимация
+    // (~2 сек) и игрок успеет рассмотреть выпавшие кости, прежде чем решать.
+    postRollDelayMinMs = 2500,
+    postRollDelayMaxMs = 3500,
+  } = {}) {
     this.room = room;
-    this.delayMin = delayMinMs;
-    this.delayMax = delayMaxMs;
+    this.firstRollDelayMin = firstRollDelayMinMs;
+    this.firstRollDelayMax = firstRollDelayMaxMs;
+    this.postRollDelayMin = postRollDelayMinMs;
+    this.postRollDelayMax = postRollDelayMaxMs;
     this.timer = null;
   }
 
@@ -203,8 +212,11 @@ export class BotDriver {
     if (this.room.farkleTimer) return;
     if (this.room.turn?.isFarkle) return;
 
-    const range = Math.max(0, this.delayMax - this.delayMin);
-    const delay = this.delayMin + Math.floor(Math.random() * (range + 1));
+    const isFirstRoll = !!this.room.turn?.awaitingFirstRoll;
+    const lo = isFirstRoll ? this.firstRollDelayMin : this.postRollDelayMin;
+    const hi = isFirstRoll ? this.firstRollDelayMax : this.postRollDelayMax;
+    const range = Math.max(0, hi - lo);
+    const delay = lo + Math.floor(Math.random() * (range + 1));
     this.timer = setTimeout(() => {
       this.timer = null;
       this._act(cur);

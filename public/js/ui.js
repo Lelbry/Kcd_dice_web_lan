@@ -179,16 +179,19 @@ function renderDice(state, store) {
   }
 
   for (let i = 0; i < dice.length; i++) {
-    const v = dice[i];
+    const realV = dice[i];
+    // Во время тряски — рандомная грань на каждом re-render, в момент settle — реальное значение
+    const displayV = store.rolling ? (1 + Math.floor(Math.random() * 6)) : realV;
     const selected = store.selection.has(i);
     const classes = [];
     if (selected) classes.push('selected');
     if (!isMine || blocked || store.rolling) classes.push('disabled');
     if (store.rolling) classes.push('rolling');
-    const el = dieElement(v, classes);
+    const el = dieElement(displayV, classes);
     el.dataset.idx = String(i);
     if (store.rolling) {
-      el.style.animationDelay = `${i * 40}ms`;
+      // Стаггер фазы шейка между кубиками — чтобы не качались в унисон
+      el.style.animationDelay = `${i * 35}ms`;
     }
     if (isMine && !blocked && !store.rolling) {
       el.addEventListener('click', () => store.toggleSelection(i));
@@ -227,7 +230,8 @@ function renderActions(state, store) {
   const sndRoll = panel.querySelector('[data-action="score-and-roll"]');
   const sndBank = panel.querySelector('[data-action="score-and-bank"]');
 
-  const blocked = turn.isFarkle;
+  // Во время тряски (2с) и farkle-показа кнопки нельзя жать
+  const blocked = turn.isFarkle || store.rolling;
 
   rollBtn.disabled = !(isMine && turn.awaitingFirstRoll && !blocked);
   sndRoll.disabled = !(isMine && !turn.awaitingFirstRoll && hasValidSelection && !blocked);

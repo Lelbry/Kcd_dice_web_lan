@@ -59,13 +59,22 @@
   height: 8px;
 }
 .die.rolling {
-  animation: tumble 600ms cubic-bezier(.4,1.8,.5,1);
+  /* Циклический шейк во время взбалтывания — длится столько, сколько играет звук */
+  animation: shake-loop 220ms ease-in-out infinite;
 }
-@keyframes tumble {
-  0%   { transform: rotate(0deg) translateY(0)    scale(1); }
-  35%  { transform: rotate(540deg) translateY(-22px) scale(1.05); }
-  70%  { transform: rotate(900deg) translateY(-8px) scale(1.02); }
-  100% { transform: rotate(1080deg) translateY(0) scale(1); }
+@keyframes shake-loop {
+  0%, 100% { transform: rotate(0deg) translateY(0); }
+  25%      { transform: rotate(-14deg) translateY(-6px) scale(1.02); }
+  50%      { transform: rotate(10deg)  translateY(3px)  scale(0.98); }
+  75%      { transform: rotate(-7deg)  translateY(-2px) scale(1.01); }
+}
+@keyframes tumble-settle {
+  0%   { transform: rotate(-12deg) translateY(-6px) scale(1.05); }
+  100% { transform: rotate(0deg)   translateY(0)    scale(1); }
+}
+/* Лёгкое «приземление» сразу после снятия класса .rolling — кубик доезжает в позицию */
+.die:not(.rolling).just-settled {
+  animation: tumble-settle 220ms cubic-bezier(.2,1.6,.4,1);
 }
 
 .pip {
