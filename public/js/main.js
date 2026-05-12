@@ -1,6 +1,7 @@
 import { Net } from './net.js';
 import { Store } from './state.js';
 import { render, showOverlay } from './ui.js';
+import { MusicPlayer } from './music.js';
 
 function getClientId() {
   let id = localStorage.getItem('kcd2_client_id');
@@ -23,6 +24,16 @@ function getName() {
 const store = new Store();
 const clientId = getClientId();
 const name = getName();
+
+// --- Музыкальный плеер с сохранением громкости/мьюта в localStorage ---
+function loadVolume() {
+  const v = parseFloat(localStorage.getItem('kcd2_music_volume'));
+  return Number.isFinite(v) ? Math.max(0, Math.min(1, v)) : 0.5;
+}
+function loadMuted() {
+  return localStorage.getItem('kcd2_music_muted') === '1';
+}
+const music = new MusicPlayer({ initialVolume: loadVolume(), initialMuted: loadMuted() });
 
 const wsScheme = location.protocol === 'https:' ? 'wss' : 'ws';
 const wsUrl = `${wsScheme}://${location.host}`;
@@ -105,9 +116,8 @@ function handleEvent(ev) {
     return;
   }
   if (ev.type === 'hotdice') {
+    // Без overlay-надписи — просто отыгрываем анимацию переролла 6 костей
     triggerRollAnimation();
-    // HOT DICE! всплывает после settle новых 6 кубиков
-    setTimeout(() => showOverlay('HOT DICE!', 'hotdice', 1400), ROLL_DURATION_MS);
     return;
   }
   if (ev.type === 'won') {
@@ -125,6 +135,34 @@ function handleEvent(ev) {
 }
 
 store.subscribe(() => render(store));
+
+// --- Реакция музыки на жизненный цикл партии и Lacrimosa-триггер ---
+const LACRIMOSA_THRESHOLD_FRAC = 0.9; // оппоненту осталось ≤ 10 % до победы
+let _prevPhase = null;
+store.subscribe(() => {
+  const state = store.state;
+  if (!state) return;
+
+  // Жизненный цикл: lobby/finished/null → playing запускает свежий шафл,
+  // playing → не-playing останавливает.
+  if (state.phase === 'playing' && _prevPhase !== 'playing') {
+    music.startGame();
+  } else if (_prevPhase === 'playing' && state.phase !== 'playing') {
+    music.stopGame();
+  }
+  _prevPhase = state.phase;
+
+  // Lacrimosa: проигрывается у того, кто проигрывает.
+  // Условие: оппонент уже набрал ≥ 90 % от целевого счёта.
+  if (state.phase === 'playing' && store.myPlayerId) {
+    const me = state.players.find((p) => p.id === store.myPlayerId);
+    const opp = state.players.find((p) => p.id !== store.myPlayerId);
+    if (me && opp && opp.totalScore >= state.targetScore * LACRIMOSA_THRESHOLD_FRAC) {
+      // triggerLacrimosa внутри сам не сработает повторно (lacrimosaUsed)
+      music.triggerLacrimosa();
+    }
+  }
+});
 
 function bindUI() {
   document.getElementById('start-btn').addEventListener('click', () => {
@@ -180,6 +218,38 @@ function bindUI() {
       render(store);
     });
   }
+
+  // --- Контролы музыки ---
+  const muteBtn = document.getElementById('mute-btn');
+  const volumeSlider = document.getElementById('volume-slider');
+
+  function updateMuteIcon() {
+    if (!muteBtn) return;
+    muteBtn.textContent = music.isMuted() || music.getVolume() === 0 ? '🔇' : '🔊';
+  }
+  if (volumeSlider) {
+    volumeSlider.value = String(Math.round(music.getVolume() * 100));
+    volumeSlider.addEventListener('input', (e) => {
+      const v = Number(e.target.value) / 100;
+      music.setVolume(v);
+      localStorage.setItem('kcd2_music_volume', String(v));
+      // Если был mute, а ползунок двинули вверх — снять mute
+      if (v > 0 && music.isMuted()) {
+        music.setMuted(false);
+        localStorage.setItem('kcd2_music_muted', '0');
+      }
+      updateMuteIcon();
+    });
+  }
+  if (muteBtn) {
+    muteBtn.addEventListener('click', () => {
+      const next = !music.isMuted();
+      music.setMuted(next);
+      localStorage.setItem('kcd2_music_muted', next ? '1' : '0');
+      updateMuteIcon();
+    });
+  }
+  updateMuteIcon();
 
   const setNameBtn = document.getElementById('set-name-btn');
   const nameInput = document.getElementById('name-input');
