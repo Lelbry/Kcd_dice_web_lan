@@ -44,7 +44,42 @@ export class MusicPlayer {
     this.lacrimosaPlaying = false;
     this.lacrimosaUsed = false;
     this.playing = false;
+    this._needsUnlock = false;
+    this._unlockBound = this._onUnlockGesture.bind(this);
     this._applyVolume();
+  }
+
+  /**
+   * Если play() заблокирован autoplay-политикой (например, сразу после F5
+   * мид-гейм, когда юзер ещё ни на что не кликнул), вешаем разовый листенер
+   * на первый user gesture и ретраим воспроизведение.
+   */
+  _armUnlock() {
+    if (this._needsUnlock) return; // уже вооружено
+    this._needsUnlock = true;
+    document.addEventListener('click', this._unlockBound, true);
+    document.addEventListener('keydown', this._unlockBound, true);
+    document.addEventListener('touchstart', this._unlockBound, true);
+  }
+  _disarmUnlock() {
+    this._needsUnlock = false;
+    document.removeEventListener('click', this._unlockBound, true);
+    document.removeEventListener('keydown', this._unlockBound, true);
+    document.removeEventListener('touchstart', this._unlockBound, true);
+  }
+  _onUnlockGesture() {
+    this._disarmUnlock();
+    if (!this.playing) return;
+    if (this.lacrimosaPlaying && this.lacrAudio.paused) {
+      this.lacrAudio.play().catch(() => this._armUnlock());
+    } else if (!this.lacrimosaPlaying && this.bgAudio.paused) {
+      // Если есть src — продолжим, иначе берём следующий из очереди
+      if (this.bgAudio.src) {
+        this.bgAudio.play().catch(() => this._armUnlock());
+      } else {
+        this._playNextBg();
+      }
+    }
   }
 
   /** Начать партию: перетасовать очередь и запустить первый фон-трек. */
@@ -76,9 +111,32 @@ export class MusicPlayer {
     try { this.bgAudio.pause(); } catch {}
     this.lacrAudio.src = trackUrl(LACRIMOSA_TRACK);
     this.lacrAudio.play().catch(() => {
-      // Если воспроизведение заблокировано (autoplay policy) — игнорируем,
-      // следующая попытка может пройти после клика.
+      // Воспроизведение заблокировано autoplay-политикой — повторим на первом
+      // клике/нажатии клавиши.
+      this._armUnlock();
     });
+  }
+
+  /** Пропустить текущий трек. Работает и во время Lacrimosa (вернёт фон). */
+  skipTrack() {
+    if (!this.playing) return;
+    if (this.lacrimosaPlaying) {
+      this.lacrimosaPlaying = false;
+      try { this.lacrAudio.pause(); } catch {}
+      try { this.lacrAudio.currentTime = 0; } catch {}
+    } else {
+      try { this.bgAudio.pause(); } catch {}
+      try { this.bgAudio.currentTime = 0; } catch {}
+    }
+    this._playNextBg();
+  }
+
+  /** Имя текущего трека (без расширения), для подсказки в UI. */
+  getCurrentTrackName() {
+    const src = this.lacrimosaPlaying ? this.lacrAudio.src : this.bgAudio.src;
+    if (!src) return '';
+    const m = src.match(/\/music\/(.+)$/);
+    return m ? decodeURIComponent(m[1]).replace(/\.mp3$/i, '') : '';
   }
 
   /** Громкость 0..1 — применяется к обоим аудиоэлементам. */
@@ -108,7 +166,8 @@ export class MusicPlayer {
     const next = this.queue.shift();
     this.bgAudio.src = trackUrl(next);
     this.bgAudio.play().catch(() => {
-      // autoplay блок — пропускаем; следующий ended-event или ручной trigger восстановит
+      // autoplay блок — повторим на первом user gesture (актуально после F5 мид-гейма)
+      this._armUnlock();
     });
   }
 

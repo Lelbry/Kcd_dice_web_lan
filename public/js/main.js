@@ -251,6 +251,16 @@ function bindUI() {
   }
   updateMuteIcon();
 
+  const skipBtn = document.getElementById('skip-btn');
+  if (skipBtn) {
+    skipBtn.addEventListener('click', () => {
+      music.skipTrack();
+      // Подсказка на hover показывает текущий трек, обновим её
+      const name = music.getCurrentTrackName();
+      skipBtn.title = name ? `Пропустить трек (сейчас: ${name})` : 'Пропустить трек';
+    });
+  }
+
   const setNameBtn = document.getElementById('set-name-btn');
   const nameInput = document.getElementById('name-input');
   if (nameInput && setNameBtn) {
