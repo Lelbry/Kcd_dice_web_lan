@@ -107,11 +107,33 @@ function renderLobby(state, store) {
 }
 
 function renderGame(state, store) {
+  renderTurnIndicator(state, store);
   renderScorePanel(state, store);
   renderDice(state, store);
   renderLockedTray(state);
   renderActions(state, store);
   renderLog(state);
+}
+
+function renderTurnIndicator(state, store) {
+  const el = document.getElementById('turn-indicator');
+  if (!el) return;
+  const textEl = document.getElementById('turn-indicator-text');
+  if (state.phase !== 'playing') {
+    el.hidden = true;
+    return;
+  }
+  el.hidden = false;
+  const isMine = store.isMyTurn();
+  el.classList.toggle('mine', isMine);
+  el.classList.toggle('theirs', !isMine);
+  if (isMine) {
+    const hint = state.turn?.awaitingFirstRoll ? '  (Space = бросить)' : '';
+    textEl.textContent = `Ваш ход${hint}`;
+  } else {
+    const oppName = nameOf(state, state.currentPlayerId);
+    textEl.textContent = `Ход: ${oppName}`;
+  }
 }
 
 function renderScorePanel(state, store) {

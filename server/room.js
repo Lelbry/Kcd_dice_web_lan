@@ -210,7 +210,15 @@ export class GameRoom {
     if (!v) return this._sendError(player, 'invalid_target');
     this.targetScore = v.targetScore;
     for (const p of this.players) p.totalScore = 0;
-    this._rerollBotPersonas();
+    // Персона бота уже выставлена в addBot или в _newGame — НЕ перерандомим здесь,
+    // иначе имя в лобби сменится при старте игры (баг отчёта пользователя).
+    // Подстраховка: если бот вдруг без mood (legacy) — выставить.
+    for (const p of this.players) {
+      if (p.isBot && !p.mood) {
+        const persona = rollBotPersona(Math.random, this._currentBotNames().filter((n) => n !== p.firstName));
+        p.mood = persona.mood;
+      }
+    }
     this.currentPlayerIdx = 0;
     this.turn = this._emptyTurn();
     this.winnerId = null;
