@@ -6,6 +6,7 @@ import { dirname, join } from 'node:path';
 import { parseArgs } from 'node:util';
 import { GameRoom } from './room.js';
 import { parseMessage, validateHello, ServerMsg, ClientMsg } from './protocol.js';
+import { BotDriver } from './bot.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const publicDir = join(__dirname, '..', 'public');
@@ -27,6 +28,8 @@ const server = createServer(app);
 const wss = new WebSocketServer({ server });
 
 const room = new GameRoom();
+const botDriver = new BotDriver(room);
+room.setStateChangedHandler(() => botDriver.tick());
 
 const PING_INTERVAL_MS = 30_000;
 const PING_TIMEOUT_MS = 10_000;

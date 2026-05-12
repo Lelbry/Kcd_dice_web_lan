@@ -7,6 +7,8 @@ export const ClientMsg = {
   SCORE_AND_ROLL: 'score_and_roll',
   SCORE_AND_BANK: 'score_and_bank',
   NEW_GAME: 'new_game',
+  ADD_BOT: 'add_bot',
+  REMOVE_BOT: 'remove_bot',
   PONG: 'pong',
 };
 

@@ -60,9 +60,17 @@ function renderLobby(state, store) {
   playersEl.innerHTML = '';
   for (const p of state.players) {
     const row = document.createElement('div');
-    row.className = 'lobby-player' + (p.connected ? ' online' : ' offline');
-    row.innerHTML = `<span class="dot"></span><span class="name">${escapeHtml(p.name)}</span>` +
-      (p.id === store.myPlayerId ? ' <span class="you">(вы)</span>' : '');
+    row.className = 'lobby-player' + (p.connected ? ' online' : ' offline') + (p.isBot ? ' is-bot' : '');
+    const youBadge = p.id === store.myPlayerId ? ' <span class="you">(вы)</span>' : '';
+    const botBadge = p.isBot ? ' <span class="bot-badge" title="бот">🤖</span>' : '';
+    row.innerHTML = `<span class="dot"></span><span class="name">${escapeHtml(p.name)}</span>${botBadge}${youBadge}`;
+    if (p.isBot) {
+      const removeBtn = document.createElement('button');
+      removeBtn.className = 'ghost small';
+      removeBtn.textContent = '× убрать';
+      removeBtn.dataset.action = 'remove-bot';
+      row.appendChild(removeBtn);
+    }
     playersEl.appendChild(row);
   }
   const empty = Math.max(0, 2 - state.players.length);
@@ -70,6 +78,15 @@ function renderLobby(state, store) {
     const row = document.createElement('div');
     row.className = 'lobby-player waiting';
     row.innerHTML = '<span class="dot"></span><span class="name">Ожидание игрока…</span>';
+    // Кнопка «Добавить бота» — только в свободный слот, и только если есть хоть один человек
+    const hasHuman = state.players.some((p) => !p.isBot);
+    if (hasHuman) {
+      const addBtn = document.createElement('button');
+      addBtn.className = 'ghost small';
+      addBtn.textContent = '+ Добавить бота';
+      addBtn.dataset.action = 'add-bot';
+      row.appendChild(addBtn);
+    }
     playersEl.appendChild(row);
   }
 
@@ -243,8 +260,36 @@ function renderLog(state) {
 function renderFinished(state, store) {
   const text = document.getElementById('winner-text');
   const winner = state.players.find((p) => p.id === state.winnerId);
-  if (winner) text.textContent = `${winner.name} победил${winner.id === store.myPlayerId ? 'и (вы!)' : ''}!`;
-  else text.textContent = 'Игра завершена';
+  if (winner) {
+    const display = winner.fullName || winner.name;
+    text.textContent = `${display} победил${winner.id === store.myPlayerId ? 'и (вы!)' : '!'}`;
+  } else {
+    text.textContent = 'Игра завершена';
+  }
+
+  const reveal = document.getElementById('bot-reveal');
+  const bot = state.players.find((p) => p.isBot);
+  if (reveal) {
+    if (bot && bot.fullName) {
+      reveal.hidden = false;
+      document.getElementById('bot-reveal-name').textContent = bot.fullName;
+      document.getElementById('bot-reveal-desc').textContent = describeMood(bot.mood);
+    } else {
+      reveal.hidden = true;
+    }
+  }
+}
+
+const MOOD_DESCRIPTIONS = {
+  cautious: 'играл осторожно, банковал рано',
+  calculated: 'действовал сбалансированно',
+  bold: 'шёл на лишние броски, охотился за hot dice',
+  reckless: 'катил кости почти до конца хода каждый раз',
+  'cold-blooded': 'играл хладнокровно, без эмоций',
+  wild: 'был непредсказуем — порой банковал гроши, порой шёл ва-банк',
+};
+function describeMood(mood) {
+  return MOOD_DESCRIPTIONS[mood] || '';
 }
 
 function computeSelectionScore(state, store) {

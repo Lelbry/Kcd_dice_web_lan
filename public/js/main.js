@@ -102,6 +102,18 @@ function bindUI() {
     net.send({ type: 'start_game', payload: { targetScore: target } });
   });
 
+  // Делегирование для кнопок «Добавить бота» / «убрать», которые рендерятся
+  // динамически внутри lobby-players.
+  document.getElementById('lobby-players').addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    if (btn.dataset.action === 'add-bot') {
+      net.send({ type: 'add_bot' });
+    } else if (btn.dataset.action === 'remove-bot') {
+      net.send({ type: 'remove_bot' });
+    }
+  });
+
   const actionsPanel = document.getElementById('actions-panel');
   actionsPanel.addEventListener('click', (e) => {
     const btn = e.target.closest('[data-action]');

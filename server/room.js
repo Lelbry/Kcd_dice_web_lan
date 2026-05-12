@@ -8,6 +8,7 @@ import {
   validateStartGame,
   validateSelection,
 } from './protocol.js';
+import { rollBotPersona, moodLabel } from './bot.js';
 
 const FARKLE_PASS_DELAY_MS = 1800;
 const RECONNECT_GRACE_MS = 60_000;
@@ -30,6 +31,12 @@ export class GameRoom {
     this.winnerId = null;
     this.history = [];
     this.farkleTimer = null;
+    this._onStateChanged = null;
+  }
+
+  /** Зарегистрировать коллбэк, который вызывается после каждого broadcast state. */
+  setStateChangedHandler(fn) {
+    this._onStateChanged = fn;
   }
 
   _emptyTurn() {
@@ -69,10 +76,56 @@ export class GameRoom {
       connected: true,
       totalScore: 0,
       releaseTimer: null,
+      isBot: false,
     };
     this.players.push(player);
     this._broadcastState();
     return { player, isNew: true };
+  }
+
+  /** Добавить виртуального игрока-бота. Только в lobby и если слот свободен. */
+  addBot() {
+    if (this.phase !== 'lobby') return { ok: false, error: 'not_in_lobby' };
+    if (this.players.length >= MAX_PLAYERS) return { ok: false, error: 'room_full' };
+    if (!this.players.some((p) => !p.isBot)) return { ok: false, error: 'need_human_first' };
+
+    const id = `p${this.players.length}`;
+    const persona = rollBotPersona(Math.random, this._currentBotNames());
+    const bot = {
+      id,
+      clientId: `bot:${id}:${Date.now()}`,
+      name: persona.firstName,
+      firstName: persona.firstName,
+      mood: persona.mood,
+      socket: null,
+      connected: true,
+      totalScore: 0,
+      releaseTimer: null,
+      isBot: true,
+    };
+    this.players.push(bot);
+    this._broadcastState();
+    return { ok: true, bot };
+  }
+
+  /** Убрать всех ботов из лобби. Только в lobby. */
+  removeBot() {
+    if (this.phase !== 'lobby') return { ok: false, error: 'not_in_lobby' };
+    const before = this.players.length;
+    this.players = this.players.filter((p) => !p.isBot);
+    // Переиндексировать оставшихся игроков (id pX по позиции).
+    this.players.forEach((p, idx) => {
+      p.id = `p${idx}`;
+    });
+    if (this.players.length !== before) {
+      this._broadcastState();
+      return { ok: true };
+    }
+    return { ok: false, error: 'no_bot' };
+  }
+
+  _currentBotNames() {
+    return this.players.filter((p) => p.isBot).map((p) => p.firstName);
   }
 
   removePlayer(clientId, { immediate = false } = {}) {
@@ -107,6 +160,16 @@ export class GameRoom {
 
     if (this.phase === 'lobby') {
       if (msg.type === ClientMsg.START_GAME) return this._startGame(player, msg.payload);
+      if (msg.type === ClientMsg.ADD_BOT) {
+        const r = this.addBot();
+        if (!r.ok) return this._sendError(player, r.error || 'cannot_add_bot');
+        return;
+      }
+      if (msg.type === ClientMsg.REMOVE_BOT) {
+        const r = this.removeBot();
+        if (!r.ok) return this._sendError(player, r.error || 'cannot_remove_bot');
+        return;
+      }
       return this._sendError(player, 'not_in_lobby');
     }
 
@@ -147,6 +210,7 @@ export class GameRoom {
     if (!v) return this._sendError(player, 'invalid_target');
     this.targetScore = v.targetScore;
     for (const p of this.players) p.totalScore = 0;
+    this._rerollBotPersonas();
     this.currentPlayerIdx = 0;
     this.turn = this._emptyTurn();
     this.winnerId = null;
@@ -161,8 +225,21 @@ export class GameRoom {
     this.winnerId = null;
     this.turn = this._emptyTurn();
     for (const p of this.players) p.totalScore = 0;
+    this._rerollBotPersonas();
     this.history = [];
     this._broadcastState();
+  }
+
+  _rerollBotPersonas() {
+    const usedNames = [];
+    for (const p of this.players) {
+      if (!p.isBot) continue;
+      const persona = rollBotPersona(Math.random, usedNames);
+      p.firstName = persona.firstName;
+      p.mood = persona.mood;
+      p.name = persona.firstName;
+      usedNames.push(persona.firstName);
+    }
   }
 
   _handleRoll(player) {
@@ -311,18 +388,34 @@ export class GameRoom {
         try { p.socket.send(data); } catch { /* ignore */ }
       }
     }
+    // Уведомить внешних подписчиков (например, BotDriver).
+    try {
+      this._onStateChanged?.();
+    } catch (err) {
+      console.error('[room] state callback failed:', err);
+    }
   }
 
   toSnapshot() {
+    const finished = this.phase === 'finished';
     return {
       phase: this.phase,
       targetScore: this.targetScore,
-      players: this.players.map((p) => ({
-        id: p.id,
-        name: p.name,
-        connected: p.connected,
-        totalScore: p.totalScore,
-      })),
+      players: this.players.map((p) => {
+        const base = {
+          id: p.id,
+          name: p.name,
+          connected: p.connected,
+          totalScore: p.totalScore,
+          isBot: !!p.isBot,
+        };
+        if (p.isBot && finished) {
+          base.mood = p.mood;
+          base.moodLabel = moodLabel(p.mood);
+          base.fullName = `${p.firstName} ${moodLabel(p.mood)}`;
+        }
+        return base;
+      }),
       currentPlayerId: this.phase === 'playing' ? this._currentPlayer()?.id : null,
       turn: { ...this.turn, diceOnTable: [...this.turn.diceOnTable], lockedDice: [...this.turn.lockedDice] },
       winnerId: this.winnerId,
