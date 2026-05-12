@@ -1,6 +1,6 @@
 {
   "name": "kcd2-dice-web-lan",
-  "version": "0.6.0",
+  "version": "1.0.0",
   "description": "KCD2-style dice game in the browser, 2 players over LAN/Radmin VPN",
   "type": "module",
   "engines": {
