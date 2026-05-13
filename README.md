@@ -30,19 +30,79 @@
 - **Стриты** засчитываются только в рамках одного броска.
 - **Победа:** первый, у кого после фиксации очки ≥ цели (2000 / 3000 / 4000 — выбирается перед партией).
 
-## Запуск
+## Что нужно установить
 
-Требуется Node.js 20+ ([скачать](https://nodejs.org/)).
+Для запуска нужен **Node.js 20+** (включает `npm`).
+
+### Windows
+
+1. Скачайте установщик **Windows Installer (.msi), LTS, 64-bit** со страницы [nodejs.org/en/download](https://nodejs.org/en/download).
+2. Запустите `.msi`, кликайте **Next** на каждом шаге, ничего не меняйте — Path добавится автоматически.
+3. **Закройте и заново откройте** окно PowerShell / Командной строки (чтобы перезагрузилась переменная `PATH`).
+4. Проверьте установку:
+   ```
+   node --version
+   npm --version
+   ```
+   Должны вывести версии (например, `v20.18.0` и `10.8.2`).
+
+### macOS
 
 ```bash
-# в папке проекта
-npm install
-npm test            # юнит-тесты движка
-npm start           # сервер на http://localhost:8080
-npm start -- --port 9000   # другой порт
+# вариант через Homebrew
+brew install node@20
+# или через nvm
+nvm install --lts && nvm use --lts
+```
+
+### Linux
+
+```bash
+# Debian/Ubuntu — через NodeSource
+curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash -
+sudo apt install -y nodejs
+# или через nvm
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
+nvm install --lts
+```
+
+## Запуск
+
+После установки Node.js, в папке проекта:
+
+```bash
+npm install              # подтянет express и ws (выполняется один раз)
+npm test                 # 81/81 тестов движка — опционально, для проверки
+npm start                # сервер на http://localhost:8080
+npm start -- --port 9000 # другой порт
 ```
 
 Откройте `http://localhost:8080` в браузере. Хост — окно №1. Для второго игрока — см. ниже.
+
+### Частые ошибки запуска
+
+<details>
+<summary><code>npm: Имя "npm" не распознано как имя командлета…</code> / <code>'npm' is not recognized…</code> / <code>command not found: npm</code></summary>
+
+Node.js не установлен или PATH не обновлён. Действия:
+1. Установите Node.js по инструкции выше (раздел «Что нужно установить»).
+2. **Закройте PowerShell/терминал полностью и откройте заново** — без этого PATH не подхватывается.
+3. Проверьте: `node --version`. Если команда не находится — переустановите Node.js, включив галку «Add to PATH» (она по умолчанию включена в LTS-инсталляторе).
+</details>
+
+<details>
+<summary><code>Error: listen EADDRINUSE: address already in use :::8080</code></summary>
+
+Порт 8080 занят (другой `npm start` уже запущен, или другая программа). Варианты:
+- Закрыть старый процесс: в PowerShell `Stop-Process -Name node -Force` (внимание: убьёт ВСЕ Node-процессы).
+- Запустить на другом порту: `npm start -- --port 9090`. Второй игрок тогда заходит на `http://<radmin-ip>:9090`.
+</details>
+
+<details>
+<summary>В браузере открывается, но не подключается второй игрок</summary>
+
+См. раздел «Если не подключается» в инструкции по Radmin VPN ниже — обычно дело в брандмауэре Windows (нужно разрешить `node.exe` доступ к сети).
+</details>
 
 ## Игра против бота (v0.6+)
 
