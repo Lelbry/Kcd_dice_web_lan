@@ -7,7 +7,9 @@ import {
   MOOD_KEYS,
   randomMood,
   randomFirstName,
+  randomBotColor,
   FIRST_NAMES,
+  BOT_COLORS,
   rollBotPersona,
 } from '../server/bot.js';
 import { ClientMsg } from '../server/protocol.js';
@@ -258,10 +260,25 @@ test('randomFirstName respects exclude', () => {
   assert.equal(n, left);
 });
 
-test('rollBotPersona returns mood+firstName', () => {
+test('rollBotPersona returns mood+firstName+color', () => {
   const p = rollBotPersona();
   assert.ok(MOOD_KEYS.includes(p.mood));
   assert.ok(FIRST_NAMES.includes(p.firstName));
+  assert.ok(BOT_COLORS.includes(p.color));
+  assert.match(p.color, /^#[0-9a-f]{6}$/i);
+});
+
+test('randomBotColor returns hex from BOT_COLORS', () => {
+  for (let i = 0; i < 50; i++) {
+    const c = randomBotColor();
+    assert.ok(BOT_COLORS.includes(c));
+  }
+});
+
+test('BOT_COLORS все валидные hex #RRGGBB', () => {
+  for (const c of BOT_COLORS) {
+    assert.match(c, /^#[0-9a-f]{6}$/i, `${c} не валидный hex`);
+  }
 });
 
 test('all moods have valid labels and descriptions', () => {

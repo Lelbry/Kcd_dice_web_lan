@@ -1,5 +1,22 @@
 import { scoreSelection } from './engine/scoring.js';
 import { TRIPLE_BASE, multiplierForCount, TARGET_OPTIONS } from './engine/rules.js';
+import { computeDieGradient, adjustLightness } from './color.js';
+
+const DEFAULT_DICE_COLOR = '#f4e8c1';
+
+function getBrightness() {
+  const v = parseFloat(localStorage.getItem('kcd2_dice_brightness'));
+  return Number.isFinite(v) ? v : 50;
+}
+
+function applyDieColor(el, baseHex) {
+  const color = baseHex || DEFAULT_DICE_COLOR;
+  const { top, bot } = computeDieGradient(color, getBrightness());
+  const edge = adjustLightness(color, -28);
+  el.style.setProperty('--die-bg-top', top);
+  el.style.setProperty('--die-bg-bot', bot);
+  el.style.setProperty('--die-edge', edge);
+}
 
 const PIP_POSITIONS = {
   1: ['center'],
@@ -200,6 +217,10 @@ function renderDice(state, store) {
     return;
   }
 
+  // Цвет кубиков на столе принадлежит текущему игроку, чей это ход.
+  const currentPlayer = state.players.find((p) => p.id === state.currentPlayerId);
+  const dieColor = currentPlayer?.color || DEFAULT_DICE_COLOR;
+
   for (let i = 0; i < dice.length; i++) {
     const realV = dice[i];
     // Во время тряски — рандомная грань на каждом re-render, в момент settle — реальное значение
@@ -210,6 +231,7 @@ function renderDice(state, store) {
     if (!isMine || blocked || store.rolling) classes.push('disabled');
     if (store.rolling) classes.push('rolling');
     const el = dieElement(displayV, classes);
+    applyDieColor(el, dieColor);
     el.dataset.idx = String(i);
     if (store.rolling) {
       // Стаггер фазы шейка между кубиками — чтобы не качались в унисон
@@ -235,8 +257,13 @@ function renderLockedTray(state) {
   label.className = 'tray-label';
   label.textContent = 'Отложено:';
   tray.appendChild(label);
+  // Отложенные кости — цвет текущего игрока (это его trophy этого хода)
+  const currentPlayer = state.players.find((p) => p.id === state.currentPlayerId);
+  const dieColor = currentPlayer?.color || DEFAULT_DICE_COLOR;
   for (const v of locked) {
-    tray.appendChild(dieElement(v, ['locked']));
+    const el = dieElement(v, ['locked']);
+    applyDieColor(el, dieColor);
+    tray.appendChild(el);
   }
 }
 
@@ -348,7 +375,12 @@ function formatHistory(h, state) {
   const ts = new Date(h.ts).toLocaleTimeString();
   const who = h.playerId ? nameOf(state, h.playerId) : '';
   switch (h.type) {
-    case 'game_started': return `[${ts}] Игра началась (цель ${h.targetScore})`;
+    case 'game_started': {
+      const firstName = h.firstPlayerId ? nameOf(state, h.firstPlayerId) : null;
+      return firstName
+        ? `[${ts}] Игра началась (цель ${h.targetScore}), первым ходит ${firstName}`
+        : `[${ts}] Игра началась (цель ${h.targetScore})`;
+    }
     case 'rolled': return `[${ts}] ${who}: бросок [${h.dice.join(', ')}]`;
     case 'held': return `[${ts}] ${who}: отложил [${h.dice.join(', ')}] = ${h.score} (раунд: ${h.roundScore})`;
     case 'farkle': return `[${ts}] ${who}: ЗОНК! −${h.lostScore}`;

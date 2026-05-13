@@ -21,6 +21,17 @@ function getName() {
   return name;
 }
 
+const DEFAULT_DICE_COLOR = '#f4e8c1';
+const HEX6_RE = /^#[0-9a-fA-F]{6}$/;
+function getDiceColor() {
+  const v = localStorage.getItem('kcd2_dice_color');
+  return v && HEX6_RE.test(v) ? v : DEFAULT_DICE_COLOR;
+}
+function getDiceBrightness() {
+  const v = parseFloat(localStorage.getItem('kcd2_dice_brightness'));
+  return Number.isFinite(v) ? Math.max(0, Math.min(100, v)) : 50;
+}
+
 const store = new Store();
 const clientId = getClientId();
 const name = getName();
@@ -38,10 +49,12 @@ const music = new MusicPlayer({ initialVolume: loadVolume(), initialMuted: loadM
 const wsScheme = location.protocol === 'https:' ? 'wss' : 'ws';
 const wsUrl = `${wsScheme}://${location.host}`;
 
+const diceColor = getDiceColor();
+
 const net = new Net(wsUrl, {
   onOpen: () => {
     store.setConnected(true);
-    net.send({ type: 'hello', payload: { name, clientId } });
+    net.send({ type: 'hello', payload: { name, clientId, color: diceColor } });
   },
   onClose: () => {
     store.setConnected(false);
@@ -269,8 +282,32 @@ function bindUI() {
       const newName = (nameInput.value || '').trim().slice(0, 20);
       if (newName) {
         localStorage.setItem('kcd2_player_name', newName);
-        net.send({ type: 'hello', payload: { name: newName, clientId } });
+        net.send({ type: 'set_profile', payload: { name: newName } });
       }
+    });
+  }
+
+  // Цвет кубиков (в лобби, передаётся оппоненту через set_profile)
+  const colorInput = document.getElementById('dice-color-input');
+  if (colorInput) {
+    colorInput.value = getDiceColor();
+    colorInput.addEventListener('input', (e) => {
+      const v = (e.target.value || '').toLowerCase();
+      if (!HEX6_RE.test(v)) return;
+      localStorage.setItem('kcd2_dice_color', v);
+      net.send({ type: 'set_profile', payload: { color: v } });
+    });
+  }
+
+  // Локальная яркость кубиков (НЕ передаётся оппоненту, влияет на свой экран)
+  const brightnessSlider = document.getElementById('brightness-slider');
+  if (brightnessSlider) {
+    brightnessSlider.value = String(getDiceBrightness());
+    brightnessSlider.addEventListener('input', (e) => {
+      const v = Number(e.target.value);
+      localStorage.setItem('kcd2_dice_brightness', String(v));
+      // Триггер re-render, чтобы кубики на экране пересчитали цвет
+      store._notify();
     });
   }
 

@@ -16,6 +16,10 @@
         <input id="volume-slider" type="range" min="0" max="100" step="1" title="Громкость музыки" />
         <button id="skip-btn" class="ghost icon" title="Пропустить трек" aria-label="skip">⏭</button>
       </div>
+      <div class="brightness-control" title="Яркость кубиков (локальная)">
+        <span class="brightness-icon" aria-hidden="true">☼</span>
+        <input id="brightness-slider" type="range" min="0" max="100" step="1" />
+      </div>
       <button id="log-toggle" class="ghost">Лог</button>
     </header>
 
@@ -26,6 +30,11 @@
           <label for="name-input">Имя:</label>
           <input id="name-input" type="text" maxlength="20" />
           <button id="set-name-btn" class="primary">Сохранить</button>
+        </div>
+        <div class="form-row">
+          <label for="dice-color-input">Цвет кубиков:</label>
+          <input id="dice-color-input" type="color" value="#f4e8c1" />
+          <span class="hint" style="margin:0;">оппонент будет видеть ваши кубики этого цвета</span>
         </div>
         <div class="lobby-players" id="lobby-players"></div>
         <div class="form-row">

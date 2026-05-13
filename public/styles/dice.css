@@ -2,9 +2,9 @@
   position: relative;
   width: 72px;
   height: 72px;
-  background: linear-gradient(180deg, #f8eecb, #e8d8a5);
+  background: linear-gradient(180deg, var(--die-bg-top, #f8eecb), var(--die-bg-bot, #e8d8a5));
   border-radius: 12px;
-  border: 2px solid #6b4a2a;
+  border: 2px solid var(--die-edge, #6b4a2a);
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   grid-template-rows: repeat(3, 1fr);

@@ -9,8 +9,16 @@ export const ClientMsg = {
   NEW_GAME: 'new_game',
   ADD_BOT: 'add_bot',
   REMOVE_BOT: 'remove_bot',
+  SET_PROFILE: 'set_profile',
   PONG: 'pong',
 };
+
+export const DEFAULT_DICE_COLOR = '#f4e8c1';
+const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
+
+export function isValidHexColor(s) {
+  return typeof s === 'string' && HEX_COLOR_RE.test(s);
+}
 
 export const ServerMsg = {
   STATE: 'state',
@@ -36,7 +44,20 @@ export function validateHello(payload) {
   const name = payload.name.trim().slice(0, 20) || 'Player';
   const clientId = payload.clientId.trim().slice(0, 64);
   if (!clientId) return null;
-  return { name, clientId };
+  const color = isValidHexColor(payload?.color) ? payload.color : DEFAULT_DICE_COLOR;
+  return { name, clientId, color };
+}
+
+export function validateSetProfile(payload) {
+  const out = {};
+  if (typeof payload?.name === 'string') {
+    const n = payload.name.trim().slice(0, 20);
+    if (n) out.name = n;
+  }
+  if (isValidHexColor(payload?.color)) {
+    out.color = payload.color;
+  }
+  return Object.keys(out).length === 0 ? null : out;
 }
 
 export function validateStartGame(payload) {

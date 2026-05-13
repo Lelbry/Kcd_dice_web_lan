@@ -7,6 +7,8 @@ import {
   validateHello,
   validateStartGame,
   validateSelection,
+  validateSetProfile,
+  DEFAULT_DICE_COLOR,
 } from './protocol.js';
 import { rollBotPersona, moodLabel } from './bot.js';
 
@@ -50,7 +52,7 @@ export class GameRoom {
     };
   }
 
-  addPlayer(clientId, name, socket) {
+  addPlayer(clientId, name, socket, color = DEFAULT_DICE_COLOR) {
     const existing = this.players.find((p) => p.clientId === clientId);
     if (existing) {
       if (existing.releaseTimer) {
@@ -60,6 +62,7 @@ export class GameRoom {
       existing.socket = socket;
       existing.connected = true;
       if (name) existing.name = name;
+      if (color) existing.color = color;
       this._broadcastState();
       this._sendTo(existing, { type: ServerMsg.EVENT, payload: { type: 'reconnected', playerId: existing.id } });
       return { player: existing, isNew: false };
@@ -77,6 +80,7 @@ export class GameRoom {
       totalScore: 0,
       releaseTimer: null,
       isBot: false,
+      color: color || DEFAULT_DICE_COLOR,
     };
     this.players.push(player);
     this._broadcastState();
@@ -102,6 +106,7 @@ export class GameRoom {
       totalScore: 0,
       releaseTimer: null,
       isBot: true,
+      color: persona.color || DEFAULT_DICE_COLOR,
     };
     this.players.push(bot);
     this._broadcastState();
@@ -157,6 +162,16 @@ export class GameRoom {
     }
 
     if (msg.type === ClientMsg.PONG) return;
+
+    // SET_PROFILE — приемлемо в любой фазе (можно поменять цвет/имя в игре)
+    if (msg.type === ClientMsg.SET_PROFILE) {
+      const v = validateSetProfile(msg.payload);
+      if (!v) return this._sendError(player, 'bad_profile');
+      if (v.name) player.name = v.name;
+      if (v.color) player.color = v.color;
+      this._broadcastState();
+      return;
+    }
 
     if (this.phase === 'lobby') {
       if (msg.type === ClientMsg.START_GAME) return this._startGame(player, msg.payload);
@@ -219,12 +234,14 @@ export class GameRoom {
         p.mood = persona.mood;
       }
     }
-    this.currentPlayerIdx = 0;
+    // Случайный первый игрок при каждом старте партии (через crypto.randomInt).
+    this.currentPlayerIdx = randomInt(0, this.players.length);
     this.turn = this._emptyTurn();
     this.winnerId = null;
     this.history = [];
     this.phase = 'playing';
-    this._pushHistory({ type: 'game_started', targetScore: this.targetScore });
+    const firstPlayerId = this.players[this.currentPlayerIdx].id;
+    this._pushHistory({ type: 'game_started', targetScore: this.targetScore, firstPlayerId });
     this._broadcastState();
   }
 
@@ -246,6 +263,7 @@ export class GameRoom {
       p.firstName = persona.firstName;
       p.mood = persona.mood;
       p.name = persona.firstName;
+      p.color = persona.color || DEFAULT_DICE_COLOR;
       usedNames.push(persona.firstName);
     }
   }
@@ -416,6 +434,7 @@ export class GameRoom {
           connected: p.connected,
           totalScore: p.totalScore,
           isBot: !!p.isBot,
+          color: p.color || DEFAULT_DICE_COLOR,
         };
         if (p.isBot && finished) {
           base.mood = p.mood;

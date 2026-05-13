@@ -105,6 +105,62 @@ html, body {
   cursor: pointer;
 }
 
+/* Локальная яркость кубиков — рядом с music-controls */
+.brightness-control {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: 12px;
+}
+.brightness-control .brightness-icon {
+  color: var(--gold);
+  font-size: 16px;
+  line-height: 1;
+}
+.brightness-control input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 80px;
+  height: 4px;
+  background: rgba(255,255,255,0.1);
+  border-radius: 2px;
+  outline: none;
+}
+.brightness-control input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  background: var(--cream);
+  border-radius: 50%;
+  border: 1px solid var(--wood-edge);
+  cursor: pointer;
+}
+.brightness-control input[type="range"]::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  background: var(--cream);
+  border-radius: 50%;
+  border: 1px solid var(--wood-edge);
+  cursor: pointer;
+}
+
+/* Color picker в лобби — компактный, под цвет темы */
+.form-row input[type="color"] {
+  width: 50px;
+  height: 32px;
+  background: var(--wood-bg);
+  border: 1px solid var(--wood-edge);
+  border-radius: 6px;
+  padding: 2px;
+  cursor: pointer;
+}
+.form-row input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+.form-row input[type="color"]::-webkit-color-swatch {
+  border: none;
+  border-radius: 4px;
+}
+
 .screen {
   display: flex;
   flex-direction: column;

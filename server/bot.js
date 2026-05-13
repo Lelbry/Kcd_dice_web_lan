@@ -49,6 +49,23 @@ export const MOODS = {
 
 export const MOOD_KEYS = Object.keys(MOODS);
 
+// Палитра «приятных» цветов кубиков для ботов. Выбирается случайно вместе с
+// настроением и именем при добавлении бота / новой партии.
+export const BOT_COLORS = [
+  '#d9b35a', // золотой
+  '#c8553d', // терракота / бордовый
+  '#3a7d44', // изумруд
+  '#4f6d7a', // сапфир / стальной
+  '#a47148', // бронза
+  '#7d5ba6', // фиолетовый
+  '#e07a5f', // персиковый
+  '#4a7c8c', // тёмная бирюза
+  '#b8627d', // розово-малиновый
+  '#8d6a9f', // лиловый
+  '#5d737e', // серо-синий
+  '#c9a66b', // песочный
+];
+
 export const FIRST_NAMES = [
   // Главные персонажи Kingdom Come: Deliverance 2
   'Индро из Скалицы', 'Индержих', 'Ян Птачек', 'Ян Жижка',
@@ -71,6 +88,10 @@ export function randomMood(rng = Math.random) {
 export function randomFirstName(rng = Math.random, exclude = []) {
   const pool = FIRST_NAMES.filter((n) => !exclude.includes(n));
   return randPick(pool.length > 0 ? pool : FIRST_NAMES, rng);
+}
+
+export function randomBotColor(rng = Math.random) {
+  return randPick(BOT_COLORS, rng);
 }
 
 export function moodLabel(mood) {
@@ -256,5 +277,6 @@ export function rollBotPersona(rng = Math.random, excludeNames = []) {
   return {
     mood: randomMood(rng),
     firstName: randomFirstName(rng, excludeNames),
+    color: randomBotColor(rng),
   };
 }

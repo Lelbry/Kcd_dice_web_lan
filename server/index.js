@@ -70,7 +70,7 @@ wss.on('connection', (socket) => {
         socket.send(JSON.stringify({ type: ServerMsg.ERROR, payload: { code: 'bad_hello' } }));
         return;
       }
-      const result = room.addPlayer(v.clientId, v.name, socket);
+      const result = room.addPlayer(v.clientId, v.name, socket, v.color);
       if (!result.player) {
         socket.send(JSON.stringify({ type: ServerMsg.ERROR, payload: { code: result.error || 'cannot_join' } }));
         try { socket.close(); } catch {}
