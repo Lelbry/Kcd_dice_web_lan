@@ -52,6 +52,17 @@ export class GameRoom {
     };
   }
 
+  /** Найти наименьший свободный pN id (p0, p1, ...) без коллизий
+   *  с уже живущими игроками. Нужно когда кто-то ушёл и оставил «дырку». */
+  _nextFreeId() {
+    const used = new Set(this.players.map((p) => p.id));
+    for (let i = 0; i < MAX_PLAYERS; i++) {
+      const candidate = `p${i}`;
+      if (!used.has(candidate)) return candidate;
+    }
+    return null;
+  }
+
   addPlayer(clientId, name, socket, color = DEFAULT_DICE_COLOR) {
     const existing = this.players.find((p) => p.clientId === clientId);
     if (existing) {
@@ -70,7 +81,8 @@ export class GameRoom {
     if (this.players.length >= MAX_PLAYERS) {
       return { player: null, isNew: false, error: 'room_full' };
     }
-    const id = `p${this.players.length}`;
+    const id = this._nextFreeId();
+    if (!id) return { player: null, isNew: false, error: 'room_full' };
     const player = {
       id,
       clientId,
@@ -93,7 +105,8 @@ export class GameRoom {
     if (this.players.length >= MAX_PLAYERS) return { ok: false, error: 'room_full' };
     if (!this.players.some((p) => !p.isBot)) return { ok: false, error: 'need_human_first' };
 
-    const id = `p${this.players.length}`;
+    const id = this._nextFreeId();
+    if (!id) return { ok: false, error: 'room_full' };
     const persona = rollBotPersona(Math.random, this._currentBotNames());
     const bot = {
       id,
