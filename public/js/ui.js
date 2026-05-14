@@ -46,6 +46,24 @@ export function render(store) {
   const reconnectBanner = document.getElementById('reconnect-banner');
   reconnectBanner.hidden = store.connected;
 
+  // Бейдж с кодом комнаты в шапке — показываем как только знаем код.
+  const roomBadge = document.getElementById('room-badge');
+  const roomCodeEl = document.getElementById('room-code-display');
+  if (roomBadge && roomCodeEl) {
+    if (store.roomCode) {
+      roomBadge.hidden = false;
+      if (roomCodeEl.textContent !== store.roomCode) {
+        roomCodeEl.textContent = store.roomCode;
+      }
+    } else {
+      roomBadge.hidden = true;
+    }
+  }
+
+  // Если экран выбора комнаты сейчас открыт — остальные экраны не трогаем.
+  const roomSelect = document.getElementById('room-select');
+  if (roomSelect && !roomSelect.hidden) return;
+
   if (!state) {
     showOnly('lobby-loading');
     return;
@@ -121,6 +139,18 @@ function renderLobby(state, store) {
 
   const startBtn = document.getElementById('start-btn');
   startBtn.disabled = state.players.length < 2 || !state.players.every((p) => p.connected);
+
+  // Подсказка для одиночного хоста: пока в комнате только один игрок —
+  // напомнить, что код комнаты есть в шапке и его надо переслать другу.
+  const shareHint = document.getElementById('lobby-share-hint');
+  if (shareHint) {
+    const onlyOne = state.players.filter((p) => !p.isBot).length === 1 && state.players.length < 2;
+    if (onlyOne && store.roomCode) {
+      shareHint.innerHTML = `Поделитесь кодом комнаты <code>${store.roomCode}</code> с другом — он введёт его на стартовом экране.`;
+    } else {
+      shareHint.textContent = 'Когда оба игрока подключены, нажми «Начать игру».';
+    }
+  }
 }
 
 function renderGame(state, store) {

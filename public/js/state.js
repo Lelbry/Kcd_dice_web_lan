@@ -3,10 +3,16 @@ export class Store {
     this.state = null;
     this.selection = new Set();
     this.myPlayerId = null;
+    this.roomCode = null;
     this.connected = false;
     this.lastEvent = null;
     this.rolling = false;
     this.listeners = [];
+  }
+
+  setRoomCode(code) {
+    this.roomCode = code;
+    this._notify();
   }
 
   setRolling(v) {

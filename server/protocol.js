@@ -13,6 +13,16 @@ export const ClientMsg = {
   PONG: 'pong',
 };
 
+export const RoomAction = {
+  CREATE: 'create',
+  JOIN: 'join',
+};
+
+// Должен совпадать с алфавитом в room-manager.js.
+const ROOM_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const ROOM_CODE_LEN = 5;
+export const ROOM_CODE_RE = new RegExp(`^[${ROOM_CODE_ALPHABET}]{${ROOM_CODE_LEN}}$`);
+
 export const DEFAULT_DICE_COLOR = '#f4e8c1';
 const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
 
@@ -45,7 +55,18 @@ export function validateHello(payload) {
   const clientId = payload.clientId.trim().slice(0, 64);
   if (!clientId) return null;
   const color = isValidHexColor(payload?.color) ? payload.color : DEFAULT_DICE_COLOR;
-  return { name, clientId, color };
+
+  const roomAction = payload?.roomAction;
+  if (roomAction !== RoomAction.CREATE && roomAction !== RoomAction.JOIN) return null;
+
+  let roomCode = null;
+  if (roomAction === RoomAction.JOIN) {
+    if (typeof payload?.roomCode !== 'string') return null;
+    roomCode = payload.roomCode.trim().toUpperCase();
+    if (!ROOM_CODE_RE.test(roomCode)) return null;
+  }
+
+  return { name, clientId, color, roomAction, roomCode };
 }
 
 export function validateSetProfile(payload) {

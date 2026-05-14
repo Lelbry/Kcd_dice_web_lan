@@ -603,3 +603,68 @@ button.ghost:hover { color: var(--cream); border-color: var(--gold); }
   z-index: 20;
   box-shadow: var(--shadow);
 }
+
+/* --- Room select (v0.5) --- */
+.room-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 20px 0 8px;
+}
+.room-or {
+  text-align: center;
+  font-size: 12px;
+  color: var(--cream-dim);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.primary.big {
+  padding: 12px 18px;
+  font-size: 16px;
+}
+.rs-join-group {
+  display: flex;
+  gap: 8px;
+}
+.room-code-input {
+  flex: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.25em;
+  font-family: ui-monospace, "Cascadia Mono", Menlo, Consolas, monospace;
+  font-size: 18px;
+  text-align: center;
+}
+.error-msg {
+  margin-top: 12px;
+  padding: 8px 12px;
+  background: rgba(204, 78, 78, 0.18);
+  border: 1px solid var(--danger);
+  border-radius: 6px;
+  color: #ffcaca;
+  font-size: 13px;
+}
+
+.room-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  margin-left: 12px;
+  background: rgba(0, 0, 0, 0.35);
+  border-radius: 6px;
+  font-size: 13px;
+}
+.room-badge .room-label {
+  color: var(--cream-dim);
+}
+.room-badge .room-code {
+  font-family: ui-monospace, "Cascadia Mono", Menlo, Consolas, monospace;
+  font-weight: bold;
+  letter-spacing: 0.15em;
+  color: var(--gold);
+}
+.ghost.icon.small {
+  padding: 2px 6px;
+  font-size: 14px;
+  line-height: 1;
+}

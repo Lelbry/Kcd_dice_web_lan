@@ -1,0 +1,28 @@
+# Пример конфигурации Cloudflare Tunnel для KCD2 Dice v0.5.
+#
+# Полная инструкция в README.md → раздел «Развёртывание онлайн через Cloudflare Tunnel».
+# Кратко:
+#   1) winget install Cloudflare.cloudflared    (или MSI с github.com/cloudflare/cloudflared)
+#   2) cloudflared tunnel login                  (откроет браузер, выбери свой домен в Cloudflare)
+#   3) cloudflared tunnel create kcd2-dice       (вернёт UUID, создаст credentials.json)
+#   4) Скопируй этот файл в %USERPROFILE%\.cloudflared\config.yml и подставь UUID + домен ниже.
+#   5) cloudflared tunnel route dns kcd2-dice dice.<твой-домен>
+#   6) cloudflared tunnel run kcd2-dice          (или установи сервисом — см. README)
+
+# UUID туннеля из шага 3 (вид: ab12cd34-ef56-...).
+tunnel: <ВАШ-TUNNEL-UUID>
+
+# Путь до credentials-файла, который сгенерировал `cloudflared tunnel create`.
+# В Windows: C:\Users\<USER>\.cloudflared\<UUID>.json
+credentials-file: C:\Users\<USER>\.cloudflared\<ВАШ-TUNNEL-UUID>.json
+
+ingress:
+  # Основной маршрут — Cloudflare принимает HTTPS от игроков и шлёт на локальный сервер.
+  - hostname: dice.<твой-домен>
+    service: http://localhost:8080
+    originRequest:
+      # WebSocket-соединения держим живыми достаточно долго (наш пинг каждые 30 сек).
+      noTLSVerify: true
+
+  # Catch-all — всё, что не подошло, отдаёт 404.
+  - service: http_status:404

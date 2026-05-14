@@ -2,12 +2,12 @@ import { WebSocket } from 'ws';
 
 const url = 'ws://localhost:8080';
 
-function connect(name, clientId) {
+function connect(name, clientId, helloExtra = { roomAction: 'create' }) {
   return new Promise((resolve) => {
     const ws = new WebSocket(url);
     const messages = [];
     ws.on('open', () => {
-      ws.send(JSON.stringify({ type: 'hello', payload: { name, clientId } }));
+      ws.send(JSON.stringify({ type: 'hello', payload: { name, clientId, ...helloExtra } }));
     });
     ws.on('message', (raw) => {
       try {
@@ -18,7 +18,7 @@ function connect(name, clientId) {
   });
 }
 
-const human = await connect('Sasha', 'cid-bot-smoke-1');
+const human = await connect('Sasha', 'cid-bot-smoke-1', { roomAction: 'create' });
 
 // Add bot
 human.ws.send(JSON.stringify({ type: 'add_bot' }));

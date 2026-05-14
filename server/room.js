@@ -33,12 +33,35 @@ export class GameRoom {
     this.winnerId = null;
     this.history = [];
     this.farkleTimer = null;
+    this.code = null; // присваивается RoomManager при создании
     this._onStateChanged = null;
+    this._onEmpty = null;
   }
 
   /** Зарегистрировать коллбэк, который вызывается после каждого broadcast state. */
   setStateChangedHandler(fn) {
     this._onStateChanged = fn;
+  }
+
+  /** Зарегистрировать коллбэк, вызываемый когда в комнате не осталось ни одного живого человека. */
+  setEmptyHandler(fn) {
+    this._onEmpty = fn;
+  }
+
+  /** Снять все таймеры и обнулить ссылки. Вызывается RoomManager перед удалением. */
+  dispose() {
+    if (this.farkleTimer) {
+      clearTimeout(this.farkleTimer);
+      this.farkleTimer = null;
+    }
+    for (const p of this.players) {
+      if (p.releaseTimer) {
+        clearTimeout(p.releaseTimer);
+        p.releaseTimer = null;
+      }
+    }
+    this._onStateChanged = null;
+    this._onEmpty = null;
   }
 
   _emptyTurn() {
@@ -165,6 +188,11 @@ export class GameRoom {
         this.history.push({ ts: Date.now(), type: 'aborted', reason: 'player_left' });
       }
       this._broadcastState();
+      // Если больше нет ни одного живого человека — комната пуста, можно закрыть.
+      const liveHumans = this.players.filter((p) => !p.isBot && p.connected);
+      if (liveHumans.length === 0) {
+        try { this._onEmpty?.(); } catch (err) { console.error('[room] onEmpty failed:', err); }
+      }
     }, RECONNECT_GRACE_MS);
     this._broadcastState();
   }
@@ -438,6 +466,7 @@ export class GameRoom {
   toSnapshot() {
     const finished = this.phase === 'finished';
     return {
+      code: this.code,
       phase: this.phase,
       targetScore: this.targetScore,
       players: this.players.map((p) => {

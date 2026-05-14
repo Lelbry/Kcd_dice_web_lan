@@ -11,6 +11,11 @@
   <div id="app">
     <header class="topbar">
       <div class="brand">Кости <span class="subtle">— KCD2</span></div>
+      <div class="room-badge" id="room-badge" hidden>
+        <span class="room-label">Код:</span>
+        <span class="room-code" id="room-code-display"></span>
+        <button id="copy-code-btn" class="ghost icon small" title="Скопировать код">⧉</button>
+      </div>
       <div class="music-controls">
         <button id="mute-btn" class="ghost icon" title="Звук / без звука" aria-label="mute">🔊</button>
         <input id="volume-slider" type="range" min="0" max="100" step="1" title="Громкость музыки" />
@@ -22,6 +27,28 @@
       </div>
       <button id="log-toggle" class="ghost">Лог</button>
     </header>
+
+    <section id="room-select" class="screen" hidden>
+      <div class="lobby-card">
+        <h1>Кости KCD2 — онлайн</h1>
+        <div class="form-row">
+          <label for="rs-name-input">Ваше имя:</label>
+          <input id="rs-name-input" type="text" maxlength="20" placeholder="Игрок" />
+        </div>
+
+        <div class="room-actions">
+          <button id="rs-create-btn" class="primary big">Создать игру</button>
+          <span class="room-or">или</span>
+          <div class="rs-join-group">
+            <input id="rs-code-input" type="text" maxlength="5" placeholder="КОД" class="room-code-input" autocomplete="off" />
+            <button id="rs-join-btn" class="primary">Войти</button>
+          </div>
+        </div>
+
+        <p class="hint">Создайте игру, скопируйте код из шапки и пришлите другу. Друг открывает эту же ссылку и вводит код.</p>
+        <p id="rs-error" class="error-msg" hidden></p>
+      </div>
+    </section>
 
     <section id="lobby" class="screen" hidden>
       <div class="lobby-card">
@@ -37,7 +64,7 @@
           <select id="target-select"></select>
           <button id="start-btn" class="primary">Начать игру</button>
         </div>
-        <p class="hint">Запустите сервер на хосте, второй игрок открывает <code>http://&lt;radmin-ip&gt;:8080</code>.</p>
+        <p class="hint" id="lobby-share-hint">Поделитесь кодом комнаты с другом — он введёт его в поле «Войти».</p>
       </div>
     </section>
 
