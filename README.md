@@ -8,7 +8,7 @@
 
 ![phase](https://img.shields.io/badge/status-beta-orange)
 ![license](https://img.shields.io/badge/license-MIT-blue)
-![node](https://img.shields.io/badge/node-%E2%89%A520-green)
+![node](https://img.shields.io/badge/node-%E2%89%A518.3-green)
 
 ## Правила
 
@@ -48,7 +48,7 @@
 
 ## Что нужно установить (для разработчика / хостинга на своём ноуте)
 
-- **Node.js 20+** (включает `npm`).
+- **Node.js 18.3+ или новее** (рекомендуется LTS 20+; на 18 в логе будут experimental-warnings про `parseArgs` и test-runner — это нормально, не блокер).
 - **Cloudflare Tunnel** (`cloudflared`) — если ты разворачиваешь сервер для интернета.
 - Один **свой домен**, делегированный на Cloudflare (бесплатно).
 

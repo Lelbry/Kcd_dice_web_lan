@@ -4,7 +4,7 @@
   "description": "KCD2-style dice game in the browser. Online server with room codes, Cloudflare Tunnel deployment (v0.5 beta).",
   "type": "module",
   "engines": {
-    "node": ">=20"
+    "node": ">=18.3"
   },
   "scripts": {
     "start": "node server/index.js",
