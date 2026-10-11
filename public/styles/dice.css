@@ -42,6 +42,29 @@
   transform: rotate(-15deg);
   box-shadow: 0 0 10px rgba(111,167,230,0.7);
 }
+.die.opponent-selected {
+  outline: none;
+  filter: brightness(1.05);
+}
+.die.opponent-selected::after {
+  content: '';
+  position: absolute;
+  left: 10%;
+  right: 10%;
+  bottom: -10px;
+  height: 12px;
+  border-radius: 50%;
+  border: 3px solid var(--danger, #d63a3a);
+  border-top-color: transparent;
+  border-left-color: transparent;
+  transform: rotate(-15deg);
+  box-shadow: 0 0 10px rgba(214,58,58,0.7);
+  animation: opponent-select-pulse 1.2s ease-in-out infinite;
+}
+@keyframes opponent-select-pulse {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
 .die.disabled {
   cursor: default;
   filter: brightness(0.85) saturate(0.7);

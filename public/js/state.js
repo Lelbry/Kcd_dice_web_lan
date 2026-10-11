@@ -2,6 +2,7 @@ export class Store {
   constructor() {
     this.state = null;
     this.selection = new Set();
+    this.opponentSelection = new Set();
     this.myPlayerId = null;
     this.connected = false;
     this.lastEvent = null;
@@ -30,9 +31,11 @@ export class Store {
     const newDice = snapshot?.turn?.diceOnTable?.join(',') ?? '';
     if (prevDice !== newDice) {
       this.selection.clear();
+      this.opponentSelection.clear();
     }
     if (snapshot?.phase !== 'playing') {
       this.selection.clear();
+      this.opponentSelection.clear();
     }
     this.state = snapshot;
     this._notify();
@@ -65,6 +68,12 @@ export class Store {
 
   getSelectionArray() {
     return [...this.selection].sort((a, b) => a - b);
+  }
+
+  setOpponentSelection(indices) {
+    this.opponentSelection.clear();
+    for (const i of indices) this.opponentSelection.add(i);
+    this._notify();
   }
 
   isMyTurn() {

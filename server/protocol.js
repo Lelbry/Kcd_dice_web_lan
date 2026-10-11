@@ -13,6 +13,7 @@ export const ClientMsg = {
   REMOVE_BOT: 'remove_bot',
   SET_PROFILE: 'set_profile',
   SURRENDER: 'surrender',
+  SELECT_PREVIEW: 'select_preview',
   PONG: 'pong',
 };
 

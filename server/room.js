@@ -210,6 +210,21 @@ export class GameRoom {
     }
 
     if (this.phase === 'playing') {
+      if (msg.type === ClientMsg.SELECT_PREVIEW) {
+        const sel = msg.payload?.selection;
+        if (!Array.isArray(sel)) return;
+        for (const p of this.players) {
+          if (p.id !== player.id && p.connected && p.socket) {
+            try {
+              p.socket.send(JSON.stringify({
+                type: ServerMsg.EVENT,
+                payload: { type: 'select_preview', playerId: player.id, selection: sel },
+              }));
+            } catch {}
+          }
+        }
+        return;
+      }
       if (msg.type === ClientMsg.SURRENDER) {
         const opponent = this.players.find((p) => p.id !== player.id);
         if (!opponent) return this._sendError(player, 'no_opponent');

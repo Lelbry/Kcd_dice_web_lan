@@ -230,8 +230,10 @@ function renderDice(state, store) {
     // Во время тряски — рандомная грань на каждом re-render, в момент settle — реальное значение
     const displayV = store.rolling ? (1 + Math.floor(Math.random() * 6)) : realV;
     const selected = store.selection.has(i);
+    const opponentSelected = !isMine && store.opponentSelection.has(i);
     const classes = [];
     if (selected) classes.push('selected');
+    if (opponentSelected) classes.push('opponent-selected');
     if (!isMine || blocked || store.rolling) classes.push('disabled');
     if (store.rolling) classes.push('rolling');
     const el = dieElement(displayV, classes);

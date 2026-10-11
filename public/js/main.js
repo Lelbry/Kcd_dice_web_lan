@@ -158,6 +158,10 @@ function handleEvent(ev) {
     showOverlay(txt, 'won', 2500);
     return;
   }
+  if (ev.type === 'select_preview') {
+    store.setOpponentSelection(ev.selection || []);
+    return;
+  }
   if (ev.type === 'banked') {
     return;
   }
@@ -167,6 +171,16 @@ function handleEvent(ev) {
 }
 
 store.subscribe(() => render(store, lobbyCode));
+
+let _prevSelKey = '';
+store.subscribe(() => {
+  if (!store.isMyTurn()) return;
+  const sel = store.getSelectionArray();
+  const key = sel.join(',');
+  if (key === _prevSelKey) return;
+  _prevSelKey = key;
+  net.send({ type: 'select_preview', payload: { selection: sel } });
+});
 
 // --- Music lifecycle ---
 const LACRIMOSA_THRESHOLD_FRAC = 0.9;
