@@ -131,7 +131,7 @@ function renderGame(state, store) {
   renderTurnIndicator(state, store);
   renderScorePanel(state, store);
   renderDice(state, store);
-  renderLockedTray(state);
+  renderLockedTray(state, store);
   renderActions(state, store);
   renderLog(state);
 }
@@ -166,9 +166,14 @@ function renderScorePanel(state, store) {
 
   const turn = state.turn || {};
   const selectionScore = computeSelectionScore(state, store);
+  const oppSelScore = computeOpponentSelectionScore(state, store);
 
   const isP1Turn = state.currentPlayerId === p1.id;
   const isP2Turn = state.currentPlayerId === p2.id;
+
+  const p1IsMe = p1.id === store.myPlayerId;
+  const p1SelScore = p1IsMe ? selectionScore : oppSelScore;
+  const p2SelScore = p1IsMe ? oppSelScore : selectionScore;
 
   const offlineMark = (p) => p.connected ? '' : ' <span class="offline-dot" title="нет связи">●</span>';
   const youMark = (p) => p.id === store.myPlayerId ? ' (вы)' : '';
@@ -195,9 +200,9 @@ function renderScorePanel(state, store) {
         <td class="p2">${isP2Turn ? turn.roundScore || 0 : 0}</td>
       </tr>
       <tr>
-        <td class="p1">${isP1Turn ? selectionScore : 0}</td>
+        <td class="p1">${isP1Turn ? p1SelScore : 0}</td>
         <td class="mid label">отобрано</td>
-        <td class="p2">${isP2Turn ? selectionScore : 0}</td>
+        <td class="p2">${isP2Turn ? p2SelScore : 0}</td>
       </tr>
     </tbody>
   `;
@@ -250,26 +255,49 @@ function renderDice(state, store) {
   }
 }
 
-function renderLockedTray(state) {
+function renderLockedTray(state, store) {
   const tray = document.getElementById('locked-tray');
   tray.innerHTML = '';
   const locked = state.turn?.lockedDice || [];
-  if (locked.length === 0) {
+  const dice = state.turn?.diceOnTable || [];
+  const isMine = store.isMyTurn();
+  const tentativeIndices = isMine
+    ? [...store.selection]
+    : [...store.opponentSelection];
+  const tentativeValues = tentativeIndices
+    .map((i) => dice[i])
+    .filter((v) => v !== undefined);
+
+  if (locked.length === 0 && tentativeValues.length === 0) {
     tray.classList.add('empty');
     return;
   }
   tray.classList.remove('empty');
-  const label = document.createElement('span');
-  label.className = 'tray-label';
-  label.textContent = 'Отложено:';
-  tray.appendChild(label);
-  // Отложенные кости — цвет текущего игрока (это его trophy этого хода)
   const currentPlayer = state.players.find((p) => p.id === state.currentPlayerId);
   const dieColor = currentPlayer?.color || DEFAULT_DICE_COLOR;
-  for (const v of locked) {
-    const el = dieElement(v, ['locked']);
-    applyDieColor(el, dieColor);
-    tray.appendChild(el);
+
+  if (locked.length > 0) {
+    const label = document.createElement('span');
+    label.className = 'tray-label';
+    label.textContent = 'Отложено:';
+    tray.appendChild(label);
+    for (const v of locked) {
+      const el = dieElement(v, ['locked']);
+      applyDieColor(el, dieColor);
+      tray.appendChild(el);
+    }
+  }
+
+  if (tentativeValues.length > 0) {
+    const sep = document.createElement('span');
+    sep.className = 'tray-label tentative-label';
+    sep.textContent = isMine ? 'Выбрано:' : 'Выбирает:';
+    tray.appendChild(sep);
+    for (const v of tentativeValues) {
+      const el = dieElement(v, ['locked', 'tentative']);
+      applyDieColor(el, dieColor);
+      tray.appendChild(el);
+    }
   }
 }
 
@@ -361,6 +389,17 @@ function computeSelectionScore(state, store) {
   if (sel.length === 0) return 0;
   const values = sel.map((i) => dice[i]).filter((v) => v !== undefined);
   if (values.length !== sel.length) return 0;
+  const r = scoreSelection(values);
+  return r.valid ? r.score : 0;
+}
+
+function computeOpponentSelectionScore(state, store) {
+  if (store.isMyTurn()) return 0;
+  const dice = state.turn?.diceOnTable || [];
+  const indices = [...store.opponentSelection];
+  if (indices.length === 0) return 0;
+  const values = indices.map((i) => dice[i]).filter((v) => v !== undefined);
+  if (values.length !== indices.length) return 0;
   const r = scoreSelection(values);
   return r.valid ? r.score : 0;
 }

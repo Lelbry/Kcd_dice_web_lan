@@ -29,7 +29,9 @@ export class Store {
   setSnapshot(snapshot) {
     const prevDice = this.state?.turn?.diceOnTable?.join(',') ?? '';
     const newDice = snapshot?.turn?.diceOnTable?.join(',') ?? '';
-    if (prevDice !== newDice) {
+    const prevPlayer = this.state?.currentPlayerId;
+    const newPlayer = snapshot?.currentPlayerId;
+    if (prevDice !== newDice || prevPlayer !== newPlayer) {
       this.selection.clear();
       this.opponentSelection.clear();
     }

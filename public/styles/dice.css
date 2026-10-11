@@ -43,8 +43,10 @@
   box-shadow: 0 0 10px rgba(111,167,230,0.7);
 }
 .die.opponent-selected {
-  outline: none;
-  filter: brightness(1.0);
+  outline: 3px solid var(--danger, #d63a3a);
+  outline-offset: 2px;
+  filter: brightness(1.05);
+  animation: opponent-select-pulse 1.2s ease-in-out infinite;
 }
 .die.opponent-selected::after {
   content: '';
@@ -59,22 +61,24 @@
   border-left-color: transparent;
   transform: rotate(-15deg);
   box-shadow: 0 0 10px rgba(214,58,58,0.7);
-  animation: opponent-select-pulse 1.2s ease-in-out infinite;
 }
 @keyframes opponent-select-pulse {
-  0%, 100% { opacity: 0.6; }
-  50% { opacity: 1; }
+  0%, 100% { outline-color: rgba(214,58,58,0.5); }
+  50% { outline-color: rgba(214,58,58,1); }
 }
 .die.disabled {
   cursor: default;
   filter: brightness(0.85) saturate(0.7);
 }
 .die.disabled.opponent-selected {
-  filter: brightness(1.0);
+  filter: brightness(1.05);
+  outline: 3px solid var(--danger, #d63a3a);
+  outline-offset: 2px;
   box-shadow:
     inset 0 -3px 0 rgba(0,0,0,0.15),
     inset 0 2px 0 rgba(255,255,255,0.3),
     0 4px 8px rgba(214,58,58,0.4);
+  animation: opponent-select-pulse 1.2s ease-in-out infinite;
 }
 .die.locked {
   width: 48px;

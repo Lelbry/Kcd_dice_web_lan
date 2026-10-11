@@ -193,7 +193,13 @@ function handleEvent(ev) {
 store.subscribe(() => render(store, lobbyCode));
 
 let _prevSelKey = '';
+let _prevTurnPlayer = null;
 store.subscribe(() => {
+  const curPlayer = store.state?.currentPlayerId;
+  if (curPlayer !== _prevTurnPlayer) {
+    _prevSelKey = '';
+    _prevTurnPlayer = curPlayer;
+  }
   if (!store.isMyTurn()) return;
   const sel = store.getSelectionArray();
   const key = sel.join(',');

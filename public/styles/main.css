@@ -396,6 +396,15 @@ button.large {
   font-size: 12px;
   margin-right: 4px;
 }
+.tray-label.tentative-label {
+  color: var(--danger);
+  margin-left: 8px;
+}
+.die.locked.tentative {
+  opacity: 0.55;
+  outline: 2px dashed var(--danger, #d63a3a);
+  outline-offset: 1px;
+}
 
 .dice-area {
   display: flex;
