@@ -293,6 +293,9 @@ function renderActions(state, store) {
   rollBtn.hidden = !turn.awaitingFirstRoll;
   sndRoll.hidden = turn.awaitingFirstRoll;
   sndBank.hidden = turn.awaitingFirstRoll;
+
+  const surrenderBtn = panel.querySelector('[data-action="surrender"]');
+  if (surrenderBtn) surrenderBtn.hidden = false;
 }
 
 function renderLog(state) {
@@ -390,6 +393,7 @@ function formatHistory(h, state) {
     case 'farkle': return `[${ts}] ${who}: ЗОНК! −${h.lostScore}`;
     case 'hot_dice': return `[${ts}] ${who}: HOT DICE! Все 6 заново`;
     case 'banked': return `[${ts}] ${who}: банк +${h.score} → ${h.total}`;
+    case 'surrendered': return `[${ts}] ${who}: сдался`;
     case 'won': return `[${ts}] ${who}: ПОБЕДА!`;
     case 'turn_passed': return `[${ts}] Ход переходит к ${nameOf(state, h.toPlayerId)}`;
     case 'aborted': return `[${ts}] Партия прервана (${h.reason})`;

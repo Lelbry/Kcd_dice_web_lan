@@ -210,6 +210,18 @@ export class GameRoom {
     }
 
     if (this.phase === 'playing') {
+      if (msg.type === ClientMsg.SURRENDER) {
+        const opponent = this.players.find((p) => p.id !== player.id);
+        if (!opponent) return this._sendError(player, 'no_opponent');
+        this.phase = 'finished';
+        this.winnerId = opponent.id;
+        this._pushHistory({ type: 'surrendered', playerId: player.id });
+        this._broadcastEvent({ type: 'surrendered', playerId: player.id });
+        this._pushHistory({ type: 'won', playerId: opponent.id });
+        this._broadcastEvent({ type: 'won', playerId: opponent.id });
+        this._broadcastState();
+        return;
+      }
       if (this.farkleTimer) {
         return this._sendError(player, 'wait_for_pass');
       }

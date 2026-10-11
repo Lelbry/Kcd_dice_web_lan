@@ -210,14 +210,30 @@ function bindUI() {
     if (e.key === 'Enter') document.getElementById('join-lobby-btn').click();
   });
 
+  function copyText(text) {
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(text).catch(() => copyFallback(text));
+    } else {
+      copyFallback(text);
+    }
+  }
+  function copyFallback(text) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    ta.remove();
+  }
+
   document.getElementById('copy-code-btn').addEventListener('click', () => {
-    const code = document.getElementById('lobby-code-text').textContent;
-    navigator.clipboard?.writeText(code);
+    copyText(document.getElementById('lobby-code-text').textContent);
   });
 
   document.getElementById('copy-link-btn').addEventListener('click', () => {
-    const link = document.getElementById('lobby-link-input').value;
-    navigator.clipboard?.writeText(link);
+    copyText(document.getElementById('lobby-link-input').value);
   });
 
   // --- Game lobby ---
@@ -250,6 +266,10 @@ function bindUI() {
     } else if (a === 'score-and-bank') {
       const sel = store.getSelectionArray();
       if (sel.length) net.send({ type: 'score_and_bank', payload: { selection: sel } });
+    } else if (a === 'surrender') {
+      if (confirm('Вы уверены, что хотите сдаться?')) {
+        net.send({ type: 'surrender' });
+      }
     } else if (a === 'help') {
       toggleHelp(true);
     } else if (a === 'new-game') {
