@@ -261,14 +261,12 @@ function renderLockedTray(state, store) {
   const locked = state.turn?.lockedDice || [];
   const dice = state.turn?.diceOnTable || [];
   const isMine = store.isMyTurn();
-  const tentativeIndices = isMine
-    ? [...store.selection]
-    : [...store.opponentSelection];
-  const tentativeValues = tentativeIndices
+  const oppIndices = !isMine ? [...store.opponentSelection] : [];
+  const oppValues = oppIndices
     .map((i) => dice[i])
     .filter((v) => v !== undefined);
 
-  if (locked.length === 0 && tentativeValues.length === 0) {
+  if (locked.length === 0 && oppValues.length === 0) {
     tray.classList.add('empty');
     return;
   }
@@ -288,12 +286,12 @@ function renderLockedTray(state, store) {
     }
   }
 
-  if (tentativeValues.length > 0) {
+  if (oppValues.length > 0) {
     const sep = document.createElement('span');
     sep.className = 'tray-label tentative-label';
-    sep.textContent = isMine ? 'Выбрано:' : 'Выбирает:';
+    sep.textContent = 'Выбирает:';
     tray.appendChild(sep);
-    for (const v of tentativeValues) {
+    for (const v of oppValues) {
       const el = dieElement(v, ['locked', 'tentative']);
       applyDieColor(el, dieColor);
       tray.appendChild(el);
