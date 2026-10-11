@@ -77,6 +77,12 @@ export class Net {
     try { this.ws?.close(); } catch {}
   }
 
+  reconnect() {
+    try { this.ws?.close(); } catch {}
+    this.backoff = 500;
+    this.connect();
+  }
+
   isOpen() {
     return this.ws?.readyState === WebSocket.OPEN;
   }

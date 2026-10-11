@@ -62,7 +62,15 @@ const net = new Net(wsUrl, {
     if (err?.code === 'room_full') {
       showLobbyError('Комната заполнена.');
     } else if (err?.code === 'lobby_not_found') {
-      showLobbyError('Лобби не найдено. Проверьте код.');
+      lobbyCode = null;
+      lobbyJoined = false;
+      store.setSnapshot(null);
+      store.setMyPlayerId(null);
+      const url = new URL(location.href);
+      url.searchParams.delete('lobby');
+      history.replaceState(null, '', url.toString());
+      showLobbySelect();
+      showLobbyError('Лобби не найдено. Создайте новое или введите другой код.');
     } else if (err?.code === 'invalid_lobby_code') {
       showLobbyError('Неверный код лобби.');
     }
@@ -99,6 +107,18 @@ function showLobbyWaiting(code) {
 
   document.getElementById('lobby-code-text').textContent = code;
   document.getElementById('lobby-link-input').value = `${location.origin}/?lobby=${code}`;
+}
+
+function leaveLobby() {
+  lobbyCode = null;
+  lobbyJoined = false;
+  store.setSnapshot(null);
+  store.setMyPlayerId(null);
+  const url = new URL(location.href);
+  url.searchParams.delete('lobby');
+  history.replaceState(null, '', url.toString());
+  showLobbySelect();
+  net.reconnect();
 }
 
 // --- Roll animation ---
@@ -222,6 +242,10 @@ function bindUI() {
 
   document.getElementById('join-code-input').addEventListener('keydown', (e) => {
     if (e.key === 'Enter') document.getElementById('join-lobby-btn').click();
+  });
+
+  document.getElementById('leave-lobby-btn').addEventListener('click', () => {
+    leaveLobby();
   });
 
   function copyText(text) {
