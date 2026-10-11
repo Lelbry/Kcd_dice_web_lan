@@ -13,12 +13,7 @@ function getClientId() {
 }
 
 function getName() {
-  let name = localStorage.getItem('kcd2_player_name');
-  if (!name) {
-    name = prompt('Ваше имя?', 'Player')?.trim() || 'Player';
-    localStorage.setItem('kcd2_player_name', name);
-  }
-  return name;
+  return localStorage.getItem('kcd2_player_name') || 'Player';
 }
 
 function getDiceBrightness() {
