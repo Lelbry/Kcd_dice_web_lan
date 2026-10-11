@@ -44,7 +44,7 @@
 }
 .die.opponent-selected {
   outline: none;
-  filter: brightness(1.05);
+  filter: brightness(1.0);
 }
 .die.opponent-selected::after {
   content: '';
@@ -68,6 +68,13 @@
 .die.disabled {
   cursor: default;
   filter: brightness(0.85) saturate(0.7);
+}
+.die.disabled.opponent-selected {
+  filter: brightness(1.0);
+  box-shadow:
+    inset 0 -3px 0 rgba(0,0,0,0.15),
+    inset 0 2px 0 rgba(255,255,255,0.3),
+    0 4px 8px rgba(214,58,58,0.4);
 }
 .die.locked {
   width: 48px;
