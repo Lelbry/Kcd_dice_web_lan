@@ -161,7 +161,7 @@ html, body {
   border-radius: 4px;
 }
 
-.screen {
+.screen:not([hidden]) {
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -365,7 +365,7 @@ button.large {
 }
 
 /* Game */
-#game {
+#game:not([hidden]) {
   display: grid;
   grid-template-rows: 1fr auto;
   position: relative;
