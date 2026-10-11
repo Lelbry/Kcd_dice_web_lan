@@ -6,6 +6,7 @@ Thumbs.db
 .env.local
 .vscode/
 .idea/
+.claude/
 dist/
 build/
 coverage/

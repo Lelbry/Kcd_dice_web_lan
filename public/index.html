@@ -23,9 +23,34 @@
       <button id="log-toggle" class="ghost">Лог</button>
     </header>
 
-    <section id="lobby" class="screen" hidden>
+    <section id="lobby-select" class="screen" hidden>
+      <div class="lobby-card">
+        <h1>Кости — Онлайн</h1>
+        <div class="lobby-actions">
+          <button id="create-lobby-btn" class="primary large">Создать лобби</button>
+          <div class="lobby-divider"><span>или</span></div>
+          <div class="form-row">
+            <input id="join-code-input" type="text" maxlength="5" placeholder="Код лобби" class="code-input" />
+            <button id="join-lobby-btn" class="primary">Присоединиться</button>
+          </div>
+        </div>
+        <p id="lobby-select-error" class="error-text" hidden></p>
+      </div>
+    </section>
+
+    <section id="lobby-waiting" class="screen" hidden>
       <div class="lobby-card">
         <h1>Лобби</h1>
+        <div class="lobby-code-display">
+          <span class="label">Код:</span>
+          <span class="code" id="lobby-code-text"></span>
+          <button id="copy-code-btn" class="ghost small" title="Скопировать">📋</button>
+        </div>
+        <div class="lobby-link-display">
+          <span class="label">Ссылка:</span>
+          <input id="lobby-link-input" type="text" readonly class="link-input" />
+          <button id="copy-link-btn" class="ghost small" title="Скопировать">📋</button>
+        </div>
         <div class="form-row">
           <label for="name-input">Имя:</label>
           <input id="name-input" type="text" maxlength="20" />
@@ -37,7 +62,6 @@
           <select id="target-select"></select>
           <button id="start-btn" class="primary">Начать игру</button>
         </div>
-        <p class="hint">Запустите сервер на хосте, второй игрок открывает <code>http://&lt;radmin-ip&gt;:8080</code>.</p>
       </div>
     </section>
 

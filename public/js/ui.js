@@ -39,24 +39,27 @@ export function dieElement(value, classes = []) {
   return el;
 }
 
-export function render(store) {
-  const root = document.getElementById('app');
+export function render(store, lobbyCode) {
   const state = store.state;
 
   const reconnectBanner = document.getElementById('reconnect-banner');
   reconnectBanner.hidden = store.connected;
 
-  if (!state) {
-    showOnly('lobby-loading');
-    return;
-  }
-
-  const lobby = document.getElementById('lobby');
+  const lobbySelect = document.getElementById('lobby-select');
+  const lobbyWaiting = document.getElementById('lobby-waiting');
   const game = document.getElementById('game');
   const finishedModal = document.getElementById('finished-modal');
 
+  if (!state) {
+    if (!lobbyCode) lobbySelect.hidden = false;
+    game.hidden = true;
+    finishedModal.hidden = true;
+    return;
+  }
+
   if (state.phase === 'lobby') {
-    lobby.hidden = false;
+    lobbySelect.hidden = true;
+    lobbyWaiting.hidden = false;
     game.hidden = true;
     finishedModal.hidden = true;
     renderLobby(state, store);
@@ -64,7 +67,8 @@ export function render(store) {
   }
 
   if (state.phase === 'playing' || state.phase === 'finished') {
-    lobby.hidden = true;
+    lobbySelect.hidden = true;
+    lobbyWaiting.hidden = true;
     game.hidden = false;
     renderGame(state, store);
     finishedModal.hidden = state.phase !== 'finished';

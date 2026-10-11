@@ -2,6 +2,8 @@ import { TARGET_OPTIONS, DICE_COUNT } from './engine/rules.js';
 
 export const ClientMsg = {
   HELLO: 'hello',
+  CREATE_LOBBY: 'create_lobby',
+  JOIN_LOBBY: 'join_lobby',
   START_GAME: 'start_game',
   ROLL: 'roll',
   SCORE_AND_ROLL: 'score_and_roll',
@@ -25,6 +27,7 @@ export const ServerMsg = {
   EVENT: 'event',
   ERROR: 'error',
   PING: 'ping',
+  LOBBY_INFO: 'lobby_info',
 };
 
 export function parseMessage(raw) {

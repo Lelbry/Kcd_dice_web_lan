@@ -30,7 +30,9 @@ const store = new Store();
 const clientId = getClientId();
 const name = getName();
 
-// --- Музыкальный плеер с сохранением громкости/мьюта в localStorage ---
+let lobbyCode = null;
+let lobbyJoined = false;
+
 function loadVolume() {
   const v = parseFloat(localStorage.getItem('kcd2_music_volume'));
   return Number.isFinite(v) ? Math.max(0, Math.min(1, v)) : 0.5;
@@ -46,7 +48,9 @@ const wsUrl = `${wsScheme}://${location.host}`;
 const net = new Net(wsUrl, {
   onOpen: () => {
     store.setConnected(true);
-    net.send({ type: 'hello', payload: { name, clientId } });
+    if (lobbyCode && !lobbyJoined) {
+      net.send({ type: 'join_lobby', payload: { code: lobbyCode } });
+    }
   },
   onClose: () => {
     store.setConnected(false);
@@ -61,36 +65,67 @@ const net = new Net(wsUrl, {
   onError: (err) => {
     console.warn('server error:', err);
     if (err?.code === 'room_full') {
-      alert('Комната заполнена.');
+      showLobbyError('Комната заполнена.');
+    } else if (err?.code === 'lobby_not_found') {
+      showLobbyError('Лобби не найдено. Проверьте код.');
+    } else if (err?.code === 'invalid_lobby_code') {
+      showLobbyError('Неверный код лобби.');
     }
+  },
+  onLobbyInfo: (payload) => {
+    lobbyCode = payload.code;
+    lobbyJoined = true;
+    const url = new URL(location.href);
+    url.searchParams.set('lobby', payload.code);
+    history.replaceState(null, '', url.toString());
+    showLobbyWaiting(payload.code);
+    net.send({ type: 'hello', payload: { name, clientId } });
   },
 });
 
+function showLobbyError(text) {
+  const el = document.getElementById('lobby-select-error');
+  if (el) {
+    el.textContent = text;
+    el.hidden = false;
+  }
+}
+
+function showLobbySelect() {
+  document.getElementById('lobby-select').hidden = false;
+  document.getElementById('lobby-waiting').hidden = true;
+  document.getElementById('game').hidden = true;
+  document.getElementById('finished-modal').hidden = true;
+}
+
+function showLobbyWaiting(code) {
+  document.getElementById('lobby-select').hidden = true;
+  document.getElementById('lobby-waiting').hidden = false;
+
+  document.getElementById('lobby-code-text').textContent = code;
+  document.getElementById('lobby-link-input').value = `${location.origin}/?lobby=${code}`;
+}
+
+// --- Roll animation ---
 const ROLL_DURATION_MS = 2000;
 let rollAnimTimer = null;
 let rollSwapInterval = null;
 let rollAudio = null;
 
 function triggerRollAnimation() {
-  // Звук взбалтывания и броска (~2 сек). Создаём новый Audio каждый раз,
-  // чтобы можно было перекрывать броски без ожидания загрузки.
   try {
     if (rollAudio) {
       try { rollAudio.pause(); } catch {}
     }
     rollAudio = new Audio('/sounds/ShakeAndThrow.mp3');
     rollAudio.volume = 0.9;
-    rollAudio.play().catch(() => {
-      // autoplay может быть заблокирован до первого клика — игнорируем
-    });
+    rollAudio.play().catch(() => {});
   } catch {}
 
   store.setRolling(true);
 
-  // Перерисовки каждые 80 мс — кубики «трясутся» (рандомные грани в renderDice)
   if (rollSwapInterval) clearInterval(rollSwapInterval);
   rollSwapInterval = setInterval(() => {
-    // Лёгкий пинок store для re-render
     store._notify();
   }, 80);
 
@@ -115,13 +150,10 @@ function handleEvent(ev) {
     return;
   }
   if (ev.type === 'farkle') {
-    // Сначала кубики долбятся 2с и приземляются на свой провальный расклад,
-    // потом всплывает «ЗОНК!» — игрок видит, что выпало.
     setTimeout(() => showOverlay('ЗОНК!', 'farkle', 1400), ROLL_DURATION_MS);
     return;
   }
   if (ev.type === 'hotdice') {
-    // Без overlay-надписи — просто отыгрываем анимацию переролла 6 костей
     triggerRollAnimation();
     return;
   }
@@ -139,17 +171,15 @@ function handleEvent(ev) {
   }
 }
 
-store.subscribe(() => render(store));
+store.subscribe(() => render(store, lobbyCode));
 
-// --- Реакция музыки на жизненный цикл партии и Lacrimosa-триггер ---
-const LACRIMOSA_THRESHOLD_FRAC = 0.9; // оппоненту осталось ≤ 10 % до победы
+// --- Music lifecycle ---
+const LACRIMOSA_THRESHOLD_FRAC = 0.9;
 let _prevPhase = null;
 store.subscribe(() => {
   const state = store.state;
   if (!state) return;
 
-  // Жизненный цикл: lobby/finished/null → playing запускает свежий шафл,
-  // playing → не-playing останавливает.
   if (state.phase === 'playing' && _prevPhase !== 'playing') {
     music.startGame();
   } else if (_prevPhase === 'playing' && state.phase !== 'playing') {
@@ -157,27 +187,51 @@ store.subscribe(() => {
   }
   _prevPhase = state.phase;
 
-  // Lacrimosa: проигрывается у того, кто проигрывает.
-  // Условие: оппонент уже набрал ≥ 90 % от целевого счёта.
   if (state.phase === 'playing' && store.myPlayerId) {
     const me = state.players.find((p) => p.id === store.myPlayerId);
     const opp = state.players.find((p) => p.id !== store.myPlayerId);
     if (me && opp && opp.totalScore >= state.targetScore * LACRIMOSA_THRESHOLD_FRAC) {
-      // triggerLacrimosa внутри сам не сработает повторно (lacrimosaUsed)
       music.triggerLacrimosa();
     }
   }
 });
 
 function bindUI() {
+  // --- Lobby select ---
+  document.getElementById('create-lobby-btn').addEventListener('click', () => {
+    net.send({ type: 'create_lobby' });
+  });
+
+  document.getElementById('join-lobby-btn').addEventListener('click', () => {
+    const code = document.getElementById('join-code-input').value.trim().toUpperCase();
+    if (!code) return;
+    document.getElementById('lobby-select-error').hidden = true;
+    lobbyCode = code;
+    lobbyJoined = false;
+    net.send({ type: 'join_lobby', payload: { code } });
+  });
+
+  document.getElementById('join-code-input').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') document.getElementById('join-lobby-btn').click();
+  });
+
+  document.getElementById('copy-code-btn').addEventListener('click', () => {
+    const code = document.getElementById('lobby-code-text').textContent;
+    navigator.clipboard?.writeText(code);
+  });
+
+  document.getElementById('copy-link-btn').addEventListener('click', () => {
+    const link = document.getElementById('lobby-link-input').value;
+    navigator.clipboard?.writeText(link);
+  });
+
+  // --- Game lobby ---
   document.getElementById('start-btn').addEventListener('click', () => {
     const targetSelect = document.getElementById('target-select');
     const target = Number(targetSelect.value) || 2000;
     net.send({ type: 'start_game', payload: { targetScore: target } });
   });
 
-  // Делегирование для кнопок «Добавить бота» / «убрать», которые рендерятся
-  // динамически внутри lobby-players.
   document.getElementById('lobby-players').addEventListener('click', (e) => {
     const btn = e.target.closest('[data-action]');
     if (!btn) return;
@@ -220,11 +274,11 @@ function bindUI() {
   if (logToggle) {
     logToggle.addEventListener('click', () => {
       document.getElementById('log-panel').classList.toggle('collapsed');
-      render(store);
+      render(store, lobbyCode);
     });
   }
 
-  // --- Контролы музыки ---
+  // --- Music controls ---
   const muteBtn = document.getElementById('mute-btn');
   const volumeSlider = document.getElementById('volume-slider');
 
@@ -238,7 +292,6 @@ function bindUI() {
       const v = Number(e.target.value) / 100;
       music.setVolume(v);
       localStorage.setItem('kcd2_music_volume', String(v));
-      // Если был mute, а ползунок двинули вверх — снять mute
       if (v > 0 && music.isMuted()) {
         music.setMuted(false);
         localStorage.setItem('kcd2_music_muted', '0');
@@ -260,7 +313,6 @@ function bindUI() {
   if (skipBtn) {
     skipBtn.addEventListener('click', () => {
       music.skipTrack();
-      // Подсказка на hover показывает текущий трек, обновим её
       const name = music.getCurrentTrackName();
       skipBtn.title = name ? `Пропустить трек (сейчас: ${name})` : 'Пропустить трек';
     });
@@ -279,14 +331,12 @@ function bindUI() {
     });
   }
 
-  // Локальная яркость кубиков (НЕ передаётся оппоненту, влияет на свой экран)
   const brightnessSlider = document.getElementById('brightness-slider');
   if (brightnessSlider) {
     brightnessSlider.value = String(getDiceBrightness());
     brightnessSlider.addEventListener('input', (e) => {
       const v = Number(e.target.value);
       localStorage.setItem('kcd2_dice_brightness', String(v));
-      // Триггер re-render, чтобы кубики на экране пересчитали цвет
       store._notify();
     });
   }
@@ -322,6 +372,18 @@ function toggleHelp(force) {
   else modal.hidden = !modal.hidden;
 }
 
+// --- Init ---
 bindUI();
+
+const urlParams = new URLSearchParams(location.search);
+const urlLobby = urlParams.get('lobby')?.trim().toUpperCase();
+if (urlLobby) {
+  lobbyCode = urlLobby;
+  lobbyJoined = false;
+  showLobbyWaiting(urlLobby);
+} else {
+  showLobbySelect();
+}
+
 net.connect();
-render(store);
+render(store, lobbyCode);

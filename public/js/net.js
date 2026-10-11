@@ -40,6 +40,9 @@ export class Net {
         case 'ping':
           this.send({ type: 'pong' });
           break;
+        case 'lobby_info':
+          this.handlers.onLobbyInfo?.(msg.payload);
+          break;
       }
     });
 

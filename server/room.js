@@ -34,6 +34,7 @@ export class GameRoom {
     this.history = [];
     this.farkleTimer = null;
     this._onStateChanged = null;
+    this.onEmpty = null;
   }
 
   /** Зарегистрировать коллбэк, который вызывается после каждого broadcast state. */
@@ -153,7 +154,8 @@ export class GameRoom {
     player.socket = null;
     if (immediate) {
       this.players = this.players.filter((p) => p !== player);
-      this._broadcastState();
+      if (this.players.length === 0) this.onEmpty?.();
+      else this._broadcastState();
       return;
     }
     if (player.releaseTimer) clearTimeout(player.releaseTimer);
@@ -164,7 +166,8 @@ export class GameRoom {
         this.turn = this._emptyTurn();
         this.history.push({ ts: Date.now(), type: 'aborted', reason: 'player_left' });
       }
-      this._broadcastState();
+      if (this.players.length === 0) this.onEmpty?.();
+      else this._broadcastState();
     }, RECONNECT_GRACE_MS);
     this._broadcastState();
   }
