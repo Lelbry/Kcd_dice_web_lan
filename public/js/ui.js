@@ -143,6 +143,7 @@ function renderLobby(state, store) {
       populateTargets(radio.value);
       const loadoutEl = document.getElementById('dice-loadout');
       if (loadoutEl) loadoutEl.hidden = radio.value !== 'pocket';
+      store._notify();
     });
   }
 
