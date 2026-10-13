@@ -4,8 +4,8 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Кости — KCD2</title>
-  <link rel="stylesheet" href="/styles/main.css?v=2.4.0" />
-  <link rel="stylesheet" href="/styles/dice.css?v=2.4.0" />
+  <link rel="stylesheet" href="/styles/main.css?v=2.5.0" />
+  <link rel="stylesheet" href="/styles/dice.css?v=2.5.0" />
 </head>
 <body>
   <div id="app">
@@ -138,20 +138,45 @@
 
     <div class="modal" id="help-modal" hidden>
       <div class="modal-inner help-inner">
-        <h2>Правила</h2>
+        <h2>Правила игры в кости</h2>
+
+        <h3 class="help-section-title">Как играть</h3>
+        <p class="help-text">Игроки по очереди бросают 6 костей. После броска нужно выбрать зачётные кости (приносящие очки) и решить: <strong>записать очки и продолжить бросать</strong> оставшиеся кости, или <strong>закончить ход</strong> и сохранить набранное. Но будьте осторожны — если после броска ни одна кость не принесла очков, это <em>Зонк</em>, и все очки за ход сгорают!</p>
+
+        <h3 class="help-section-title">Зачётные комбинации</h3>
         <div class="combos">
-          <div><span class="combo-name">Одиночная «1»</span><span>100</span></div>
-          <div><span class="combo-name">Одиночная «5»</span><span>50</span></div>
-          <div><span class="combo-name">Три «1»</span><span>1000</span></div>
-          <div><span class="combo-name">Три N (N=2..6)</span><span>N × 100</span></div>
-          <div><span class="combo-name">4 одинаковых</span><span>×2 от тройки</span></div>
-          <div><span class="combo-name">5 одинаковых</span><span>×4 от тройки</span></div>
-          <div><span class="combo-name">6 одинаковых</span><span>×8 от тройки</span></div>
-          <div><span class="combo-name">Стрит 1-5</span><span>500</span></div>
-          <div><span class="combo-name">Стрит 2-6</span><span>750</span></div>
-          <div><span class="combo-name">Стрит 1-6</span><span>1500</span></div>
+          <div><span class="combo-name">Единица (кость с 1 точкой)</span><span>100 очков</span></div>
+          <div><span class="combo-name">Пятёрка (кость с 5 точками)</span><span>50 очков</span></div>
+          <div><span class="combo-name">Три единицы</span><span>1 000 очков</span></div>
+          <div><span class="combo-name">Три двойки</span><span>200 очков</span></div>
+          <div><span class="combo-name">Три тройки</span><span>300 очков</span></div>
+          <div><span class="combo-name">Три четвёрки</span><span>400 очков</span></div>
+          <div><span class="combo-name">Три пятёрки</span><span>500 очков</span></div>
+          <div><span class="combo-name">Три шестёрки</span><span>600 очков</span></div>
+          <div><span class="combo-name">4 одинаковых кости</span><span>x2 от тройки</span></div>
+          <div><span class="combo-name">5 одинаковых костей</span><span>x4 от тройки</span></div>
+          <div><span class="combo-name">6 одинаковых костей</span><span>x8 от тройки</span></div>
+          <div><span class="combo-name">Малый стрит (1-2-3-4-5)</span><span>500 очков</span></div>
+          <div><span class="combo-name">Большой стрит (2-3-4-5-6)</span><span>750 очков</span></div>
+          <div><span class="combo-name">Полный стрит (1-2-3-4-5-6)</span><span>1 500 очков</span></div>
         </div>
-        <p class="muted">Зонк (нет зачётных): очки хода сгорают, ход переходит. Hot dice (все 6 зачётные): обязательный переролл всех 6. Победа: первый, у кого после фиксации очки ≥ цели.</p>
+
+        <h3 class="help-section-title">Особые ситуации</h3>
+        <p class="help-text"><strong>Зонк</strong> — после броска ни одна кость не принесла очков. Все очки за текущий ход сгорают, и ход переходит к сопернику.</p>
+        <p class="help-text"><strong>Hot Dice</strong> — все 6 костей оказались зачётными. Все кости автоматически возвращаются в игру и бросаются заново, а набранные очки сохраняются.</p>
+
+        <h3 class="help-section-title">Режимы игры</h3>
+        <p class="help-text"><strong>Классический</strong> — стандартные правила с обычными костями. Цели: 2 000 / 3 000 / 4 000 очков. Побеждает тот, кто первым наберёт нужную сумму.</p>
+        <p class="help-text"><strong>Карманные кости</strong> — можно выбрать до 3 специальных костей с изменёнными вероятностями выпадения граней. Например, «Заряженная кость» чаще выбрасывает единицы, а «Нечётная» — нечётные числа. Цели выше: 4 000 / 6 000 / 8 000 очков.</p>
+
+        <h3 class="help-section-title">Управление</h3>
+        <div class="combos">
+          <div><span class="combo-name">ПРОБЕЛ</span><span>Бросить кости</span></div>
+          <div><span class="combo-name">F</span><span>Записать и продолжить</span></div>
+          <div><span class="combo-name">Q</span><span>Записать и закончить ход</span></div>
+          <div><span class="combo-name">T</span><span>Открыть / закрыть помощь</span></div>
+        </div>
+
         <button data-close-modal class="primary">Закрыть</button>
       </div>
     </div>
@@ -167,6 +192,6 @@
     <div id="reconnect-banner" hidden>Соединение прервано, переподключение…</div>
   </div>
 
-  <script type="module" src="/js/main.js?v=2.4.0"></script>
+  <script type="module" src="/js/main.js?v=2.5.0"></script>
 </body>
 </html>

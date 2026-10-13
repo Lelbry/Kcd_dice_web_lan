@@ -664,18 +664,34 @@ button.ghost:hover { color: var(--cream); border-color: var(--gold); }
   box-shadow: var(--shadow);
 }
 .modal-inner h2 { margin: 0 0 16px; color: var(--gold); }
-.help-inner { max-width: 480px; text-align: left; }
+.help-inner { max-width: 520px; text-align: left; max-height: 80vh; overflow-y: auto; }
+.help-section-title {
+  color: var(--gold);
+  font-size: 14px;
+  margin: 18px 0 6px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid rgba(217,179,90,0.2);
+}
+.help-section-title:first-of-type { margin-top: 8px; }
+.help-text {
+  color: var(--cream-dim);
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 6px 0;
+}
+.help-text strong { color: var(--cream); }
+.help-text em { color: var(--danger); font-style: normal; }
 .combos {
   display: grid;
   grid-template-columns: 1fr auto;
   gap: 4px 16px;
-  margin: 16px 0;
+  margin: 8px 0 12px;
 }
 .combos > div {
   display: contents;
 }
-.combos .combo-name { color: var(--cream-dim); }
-.combos > div > span:last-child { color: var(--gold); text-align: right; }
+.combos .combo-name { color: var(--cream-dim); font-size: 13px; }
+.combos > div > span:last-child { color: var(--gold); text-align: right; font-size: 13px; }
 .muted { color: var(--cream-dim); font-size: 12px; }
 
 /* Reconnect banner */
@@ -703,10 +719,12 @@ button.ghost:hover { color: var(--cream); border-color: var(--gold); }
   color: var(--cream-dim);
   font-size: 13px;
   margin-bottom: 8px;
+  text-align: center;
 }
 .mode-options {
   display: flex;
   gap: 12px;
+  justify-content: center;
 }
 .mode-option {
   display: flex;
