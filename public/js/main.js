@@ -83,6 +83,7 @@ const net = new Net(wsUrl, {
     history.replaceState(null, '', url.toString());
     showLobbyWaiting(payload.code);
     net.send({ type: 'hello', payload: { name, clientId } });
+    net.send({ type: 'set_loadout', payload: { loadout: store.getLoadout() } });
   },
 });
 
@@ -132,9 +133,11 @@ function triggerRollAnimation() {
     if (rollAudio) {
       try { rollAudio.pause(); } catch {}
     }
-    rollAudio = new Audio('/sounds/ShakeAndThrow.mp3');
-    rollAudio.volume = 0.9;
-    rollAudio.play().catch(() => {});
+    if (!music.isMuted()) {
+      rollAudio = new Audio('/sounds/ShakeAndThrow.mp3');
+      rollAudio.volume = music.getVolume() * 0.9;
+      rollAudio.play().catch(() => {});
+    }
   } catch {}
 
   store.setRolling(true);
@@ -191,6 +194,16 @@ function handleEvent(ev) {
 }
 
 store.subscribe(() => render(store, lobbyCode));
+
+let _prevLoadoutKey = '';
+store.subscribe(() => {
+  const key = store.myLoadout.join(',');
+  if (key === _prevLoadoutKey) return;
+  _prevLoadoutKey = key;
+  if (lobbyJoined) {
+    net.send({ type: 'set_loadout', payload: { loadout: store.getLoadout() } });
+  }
+});
 
 let _prevSelKey = '';
 let _prevTurnPlayer = null;
@@ -284,7 +297,8 @@ function bindUI() {
   document.getElementById('start-btn').addEventListener('click', () => {
     const targetSelect = document.getElementById('target-select');
     const target = Number(targetSelect.value) || 2000;
-    net.send({ type: 'start_game', payload: { targetScore: target } });
+    const mode = store._selectedMode || 'classic';
+    net.send({ type: 'start_game', payload: { targetScore: target, mode } });
   });
 
   document.getElementById('lobby-players').addEventListener('click', (e) => {
@@ -326,7 +340,11 @@ function bindUI() {
   });
 
   document.querySelectorAll('[data-close-modal]').forEach((el) => {
-    el.addEventListener('click', () => toggleHelp(false));
+    el.addEventListener('click', () => {
+      toggleHelp(false);
+      const pickerModal = document.getElementById('dice-picker-modal');
+      if (pickerModal) pickerModal.hidden = true;
+    });
   });
 
   const logToggle = document.getElementById('log-toggle');
@@ -400,6 +418,13 @@ function bindUI() {
     });
   }
 
+  const pickerModal = document.getElementById('dice-picker-modal');
+  if (pickerModal) {
+    pickerModal.addEventListener('click', (e) => {
+      if (e.target === pickerModal) pickerModal.hidden = true;
+    });
+  }
+
   document.addEventListener('keydown', (e) => {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
     if (e.code === 'Space') {
@@ -421,6 +446,8 @@ function bindUI() {
       toggleHelp();
     } else if (e.code === 'Escape') {
       toggleHelp(false);
+      const pm = document.getElementById('dice-picker-modal');
+      if (pm) pm.hidden = true;
     }
   });
 }

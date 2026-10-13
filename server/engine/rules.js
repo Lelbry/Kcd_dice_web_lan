@@ -1,7 +1,29 @@
 export const DICE_COUNT = 6;
 export const DICE_FACES = 6;
 
-export const TARGET_OPTIONS = [2000, 3000, 4000];
+export const GAME_MODES = {
+  classic: {
+    id: 'classic',
+    name: 'Классический',
+    targets: [2000, 3000, 4000],
+    defaultTarget: 2000,
+    allowSpecialDice: false,
+  },
+  pocket: {
+    id: 'pocket',
+    name: 'Карманные кости',
+    targets: [4000, 6000, 8000],
+    defaultTarget: 4000,
+    allowSpecialDice: true,
+  },
+};
+
+export const GAME_MODE_IDS = Object.keys(GAME_MODES);
+export const DEFAULT_GAME_MODE = 'classic';
+
+export const TARGET_OPTIONS = [...new Set(
+  Object.values(GAME_MODES).flatMap((m) => m.targets),
+)];
 export const DEFAULT_TARGET = 2000;
 
 export const SINGLE_1 = 100;

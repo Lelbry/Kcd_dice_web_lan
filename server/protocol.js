@@ -1,4 +1,5 @@
-import { TARGET_OPTIONS, DICE_COUNT } from './engine/rules.js';
+import { TARGET_OPTIONS, DICE_COUNT, GAME_MODES, GAME_MODE_IDS, DEFAULT_GAME_MODE } from './engine/rules.js';
+import { validateLoadoutArray } from './engine/dice-types.js';
 
 export const ClientMsg = {
   HELLO: 'hello',
@@ -12,6 +13,7 @@ export const ClientMsg = {
   ADD_BOT: 'add_bot',
   REMOVE_BOT: 'remove_bot',
   SET_PROFILE: 'set_profile',
+  SET_LOADOUT: 'set_loadout',
   SURRENDER: 'surrender',
   SELECT_PREVIEW: 'select_preview',
   PONG: 'pong',
@@ -66,9 +68,17 @@ export function validateSetProfile(payload) {
 }
 
 export function validateStartGame(payload) {
+  const mode = GAME_MODE_IDS.includes(payload?.mode) ? payload.mode : DEFAULT_GAME_MODE;
+  const modeCfg = GAME_MODES[mode];
   const t = payload?.targetScore;
-  if (!TARGET_OPTIONS.includes(t)) return null;
-  return { targetScore: t };
+  if (!modeCfg.targets.includes(t)) return null;
+  return { targetScore: t, mode };
+}
+
+export function validateLoadout(payload) {
+  const loadout = validateLoadoutArray(payload?.loadout);
+  if (!loadout) return null;
+  return { loadout };
 }
 
 export function validateSelection(payload) {

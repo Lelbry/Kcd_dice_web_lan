@@ -1,21 +1,43 @@
 import { scoreSelection } from './engine/scoring.js';
-import { TRIPLE_BASE, multiplierForCount, TARGET_OPTIONS } from './engine/rules.js';
-import { computeDieGradient, adjustLightness } from './color.js';
+import { TRIPLE_BASE, multiplierForCount, GAME_MODES, DEFAULT_GAME_MODE } from './engine/rules.js';
+import { computeDieGradient, adjustLightness, hexToHsl } from './color.js';
+import { DICE_TYPES, DICE_TYPES_MAP, MAX_SPECIAL_DICE } from './engine/dice-types.js';
 
 const DEFAULT_DICE_COLOR = '#f4e8c1';
+
+function populateTargets(mode) {
+  const targetSelect = document.getElementById('target-select');
+  const modeCfg = GAME_MODES[mode] || GAME_MODES.classic;
+  const current = Number(targetSelect.value);
+  targetSelect.innerHTML = '';
+  for (const t of modeCfg.targets) {
+    const opt = document.createElement('option');
+    opt.value = String(t);
+    opt.textContent = String(t);
+    targetSelect.appendChild(opt);
+  }
+  if (modeCfg.targets.includes(current)) targetSelect.value = String(current);
+  else targetSelect.value = String(modeCfg.defaultTarget);
+}
 
 function getBrightness() {
   const v = parseFloat(localStorage.getItem('kcd2_dice_brightness'));
   return Number.isFinite(v) ? v : 50;
 }
 
-function applyDieColor(el, baseHex) {
+function applyDieColor(el, baseHex, isSpecial = false) {
   const color = baseHex || DEFAULT_DICE_COLOR;
   const { top, bot } = computeDieGradient(color, getBrightness());
   const edge = adjustLightness(color, -28);
   el.style.setProperty('--die-bg-top', top);
   el.style.setProperty('--die-bg-bot', bot);
   el.style.setProperty('--die-edge', edge);
+  if (isSpecial) {
+    el.classList.add('special-die');
+    el.style.setProperty('--die-glow', color);
+    const [, , l] = hexToHsl(color);
+    if (l < 60) el.classList.add('light-pips');
+  }
 }
 
 const PIP_POSITIONS = {
@@ -111,20 +133,107 @@ function renderLobby(state, store) {
     playersEl.appendChild(row);
   }
 
-  const targetSelect = document.getElementById('target-select');
-  if (!targetSelect.dataset.bound) {
-    for (const t of TARGET_OPTIONS) {
-      const opt = document.createElement('option');
-      opt.value = String(t);
-      opt.textContent = String(t);
-      targetSelect.appendChild(opt);
-    }
-    targetSelect.value = String(state.targetScore);
-    targetSelect.dataset.bound = '1';
+  const modeSelector = document.getElementById('mode-selector');
+  if (modeSelector && !modeSelector.dataset.bound) {
+    modeSelector.dataset.bound = '1';
+    modeSelector.addEventListener('change', (e) => {
+      const radio = e.target.closest('input[name="game-mode"]');
+      if (!radio) return;
+      store._selectedMode = radio.value;
+      populateTargets(radio.value);
+      const loadoutEl = document.getElementById('dice-loadout');
+      if (loadoutEl) loadoutEl.hidden = radio.value !== 'pocket';
+    });
   }
+
+  const currentMode = store._selectedMode || DEFAULT_GAME_MODE;
+  const modeRadio = modeSelector?.querySelector(`input[value="${currentMode}"]`);
+  if (modeRadio && !modeRadio.checked) modeRadio.checked = true;
+
+  const loadoutEl = document.getElementById('dice-loadout');
+  if (loadoutEl) loadoutEl.hidden = currentMode !== 'pocket';
+
+  populateTargets(currentMode);
 
   const startBtn = document.getElementById('start-btn');
   startBtn.disabled = state.players.length < 2 || !state.players.every((p) => p.connected);
+
+  if (currentMode === 'pocket') renderLoadout(store);
+}
+
+let _pickerSlotIdx = 0;
+
+function renderLoadout(store) {
+  const slotsEl = document.getElementById('loadout-slots');
+  if (!slotsEl) return;
+  slotsEl.innerHTML = '';
+  const loadout = store.getLoadout();
+  for (let i = 0; i < 6; i++) {
+    const typeId = loadout[i] || 'normal';
+    const dt = DICE_TYPES_MAP[typeId];
+    const slot = document.createElement('div');
+    slot.className = 'loadout-slot' + (dt?.special ? ' special' : '');
+    const preview = dieElement(i + 1, ['locked']);
+    applyDieColor(preview, dt?.color || DEFAULT_DICE_COLOR, dt?.special);
+    slot.appendChild(preview);
+    const nameTag = document.createElement('span');
+    nameTag.className = 'slot-name';
+    nameTag.textContent = dt?.special ? dt.name : '';
+    slot.title = dt?.name || '';
+    slot.appendChild(nameTag);
+    slot.addEventListener('click', () => openDicePicker(store, i));
+    slotsEl.appendChild(slot);
+  }
+}
+
+function openDicePicker(store, slotIdx) {
+  _pickerSlotIdx = slotIdx;
+  const modal = document.getElementById('dice-picker-modal');
+  const catalog = document.getElementById('dice-catalog');
+  modal.hidden = false;
+  catalog.innerHTML = '';
+
+  const loadout = store.getLoadout();
+  const currentSpecials = loadout.filter((id) => DICE_TYPES_MAP[id]?.special).length;
+  const currentSlotIsSpecial = DICE_TYPES_MAP[loadout[slotIdx]]?.special;
+
+  for (const dt of DICE_TYPES) {
+    const card = document.createElement('div');
+    const isActive = loadout[slotIdx] === dt.id;
+    const atLimit = dt.special && !currentSlotIsSpecial && currentSpecials >= MAX_SPECIAL_DICE;
+    card.className = 'dice-type-card' + (isActive ? ' active' : '') + (atLimit ? ' disabled' : '');
+
+    const preview = dieElement(3, ['locked']);
+    applyDieColor(preview, dt.color, dt.special);
+    card.appendChild(preview);
+
+    const info = document.createElement('div');
+    info.className = 'card-info';
+    info.innerHTML = `<div class="card-name">${escapeHtml(dt.name)}</div><div class="card-desc">${escapeHtml(dt.description)}</div>`;
+    card.appendChild(info);
+
+    const bars = document.createElement('div');
+    bars.className = 'prob-bars';
+    const total = dt.weights.reduce((s, w) => s + w, 0);
+    for (let f = 0; f < 6; f++) {
+      const pct = total > 0 ? Math.round((dt.weights[f] / total) * 100) : 0;
+      const bar = document.createElement('div');
+      bar.className = 'prob-bar';
+      bar.innerHTML = `<span class="bar-face">${f + 1}</span><div class="bar-track"><div class="bar-fill" style="width:${pct}%"></div></div><span class="bar-pct">${pct}%</span>`;
+      bars.appendChild(bar);
+    }
+    card.appendChild(bars);
+
+    if (!atLimit) {
+      card.addEventListener('click', () => {
+        if (store.setLoadoutSlot(_pickerSlotIdx, dt.id)) {
+          modal.hidden = true;
+          store._notify();
+        }
+      });
+    }
+    catalog.appendChild(card);
+  }
 }
 
 function renderGame(state, store) {
@@ -226,13 +335,20 @@ function renderDice(state, store) {
     return;
   }
 
-  // Цвет кубиков на столе принадлежит текущему игроку, чей это ход.
-  const currentPlayer = state.players.find((p) => p.id === state.currentPlayerId);
-  const dieColor = currentPlayer?.color || DEFAULT_DICE_COLOR;
+  const diceTypeIds = turn.diceTypeIds || [];
+
+  const diceKey = dice.join(',');
+  if (!area._scatterSeeds || area._scatterKey !== diceKey) {
+    area._scatterKey = diceKey;
+    area._scatterSeeds = dice.map(() => ({
+      rot: (Math.random() - 0.5) * 16,
+      tx: (Math.random() - 0.5) * 8,
+      ty: (Math.random() - 0.5) * 6,
+    }));
+  }
 
   for (let i = 0; i < dice.length; i++) {
     const realV = dice[i];
-    // Во время тряски — рандомная грань на каждом re-render, в момент settle — реальное значение
     const displayV = store.rolling ? (1 + Math.floor(Math.random() * 6)) : realV;
     const selected = store.selection.has(i);
     const opponentSelected = !isMine && store.opponentSelection.has(i);
@@ -242,11 +358,16 @@ function renderDice(state, store) {
     if (!isMine || blocked || store.rolling) classes.push('disabled');
     if (store.rolling) classes.push('rolling');
     const el = dieElement(displayV, classes);
-    applyDieColor(el, dieColor);
+    const typeId = diceTypeIds[i] || 'normal';
+    const diceType = DICE_TYPES_MAP[typeId];
+    applyDieColor(el, diceType?.color || DEFAULT_DICE_COLOR, diceType?.special);
+    if (diceType?.special) el.title = diceType.name;
     el.dataset.idx = String(i);
     if (store.rolling) {
-      // Стаггер фазы шейка между кубиками — чтобы не качались в унисон
       el.style.animationDelay = `${i * 35}ms`;
+    } else {
+      const s = area._scatterSeeds[i];
+      el.style.transform = `rotate(${s.rot}deg) translate(${s.tx}px, ${s.ty}px)`;
     }
     if (isMine && !blocked && !store.rolling) {
       el.addEventListener('click', () => store.toggleSelection(i));
@@ -271,17 +392,19 @@ function renderLockedTray(state, store) {
     return;
   }
   tray.classList.remove('empty');
-  const currentPlayer = state.players.find((p) => p.id === state.currentPlayerId);
-  const dieColor = currentPlayer?.color || DEFAULT_DICE_COLOR;
+  const lockedTypeIds = state.turn?.lockedDiceTypeIds || [];
+  const diceTypeIds = state.turn?.diceTypeIds || [];
 
   if (locked.length > 0) {
     const label = document.createElement('span');
     label.className = 'tray-label';
     label.textContent = 'Отложено:';
     tray.appendChild(label);
-    for (const v of locked) {
-      const el = dieElement(v, ['locked']);
-      applyDieColor(el, dieColor);
+    for (let i = 0; i < locked.length; i++) {
+      const el = dieElement(locked[i], ['locked']);
+      const typeId = lockedTypeIds[i] || 'normal';
+      const dt = DICE_TYPES_MAP[typeId];
+      applyDieColor(el, dt?.color || DEFAULT_DICE_COLOR, dt?.special);
       tray.appendChild(el);
     }
   }
@@ -291,9 +414,13 @@ function renderLockedTray(state, store) {
     sep.className = 'tray-label tentative-label';
     sep.textContent = 'Выбирает:';
     tray.appendChild(sep);
-    for (const v of oppValues) {
+    for (let j = 0; j < oppIndices.length; j++) {
+      const v = dice[oppIndices[j]];
+      if (v === undefined) continue;
       const el = dieElement(v, ['locked', 'tentative']);
-      applyDieColor(el, dieColor);
+      const typeId = diceTypeIds[oppIndices[j]] || 'normal';
+      const dt2 = DICE_TYPES_MAP[typeId];
+      applyDieColor(el, dt2?.color || DEFAULT_DICE_COLOR, dt2?.special);
       tray.appendChild(el);
     }
   }

@@ -4,8 +4,8 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Кости — KCD2</title>
-  <link rel="stylesheet" href="/styles/main.css?v=2.1.5" />
-  <link rel="stylesheet" href="/styles/dice.css?v=2.1.5" />
+  <link rel="stylesheet" href="/styles/main.css?v=2.4.0" />
+  <link rel="stylesheet" href="/styles/dice.css?v=2.4.0" />
 </head>
 <body>
   <div id="app">
@@ -55,6 +55,24 @@
           <label for="name-input">Имя:</label>
           <input id="name-input" type="text" maxlength="20" />
           <button id="set-name-btn" class="primary">Сохранить</button>
+        </div>
+        <div class="mode-selector" id="mode-selector">
+          <div class="mode-label">Режим:</div>
+          <div class="mode-options">
+            <label class="mode-option">
+              <input type="radio" name="game-mode" value="classic" checked />
+              <span class="mode-name">Классический</span>
+            </label>
+            <label class="mode-option">
+              <input type="radio" name="game-mode" value="pocket" />
+              <span class="mode-name">Карманные кости</span>
+            </label>
+          </div>
+        </div>
+        <div class="dice-loadout" id="dice-loadout" hidden>
+          <div class="loadout-label">Мои кости:</div>
+          <div class="loadout-slots" id="loadout-slots"></div>
+          <div class="loadout-hint">Можно выбрать до 3 специальных костей</div>
         </div>
         <div class="lobby-players" id="lobby-players"></div>
         <div class="form-row">
@@ -138,9 +156,17 @@
       </div>
     </div>
 
+    <div class="modal" id="dice-picker-modal" hidden>
+      <div class="modal-inner picker-inner">
+        <h2>Выбрать кость</h2>
+        <div class="dice-catalog" id="dice-catalog"></div>
+        <button data-close-modal class="primary">Закрыть</button>
+      </div>
+    </div>
+
     <div id="reconnect-banner" hidden>Соединение прервано, переподключение…</div>
   </div>
 
-  <script type="module" src="/js/main.js?v=2.1.5"></script>
+  <script type="module" src="/js/main.js?v=2.4.0"></script>
 </body>
 </html>

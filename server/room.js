@@ -1,5 +1,5 @@
 import { randomInt } from 'node:crypto';
-import { DICE_COUNT, DEFAULT_TARGET } from './engine/rules.js';
+import { DICE_COUNT, DEFAULT_TARGET, GAME_MODES, DEFAULT_GAME_MODE } from './engine/rules.js';
 import { canHold, canBank, checkWin, isFarkle } from './engine/validate.js';
 import {
   ServerMsg,
@@ -8,9 +8,11 @@ import {
   validateStartGame,
   validateSelection,
   validateSetProfile,
+  validateLoadout,
   DEFAULT_DICE_COLOR,
 } from './protocol.js';
 import { rollBotPersona, moodLabel } from './bot.js';
+import { DICE_TYPES_MAP, DEFAULT_LOADOUT, rollWeighted } from './engine/dice-types.js';
 
 const FARKLE_PASS_DELAY_MS = 3500;
 const RECONNECT_GRACE_MS = 60_000;
@@ -23,9 +25,26 @@ function rollDice(n) {
   return out;
 }
 
+function shuffleArray(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = randomInt(0, i + 1);
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+function rollDiceWeighted(typeIds) {
+  return typeIds.map((id) => {
+    const dt = DICE_TYPES_MAP[id];
+    if (!dt) return randomInt(1, 7);
+    return rollWeighted(dt.weights);
+  });
+}
+
 export class GameRoom {
   constructor() {
     this.phase = 'lobby';
+    this.gameMode = DEFAULT_GAME_MODE;
     this.targetScore = DEFAULT_TARGET;
     this.players = [];
     this.currentPlayerIdx = 0;
@@ -46,7 +65,9 @@ export class GameRoom {
     return {
       awaitingFirstRoll: true,
       diceOnTable: [],
+      diceTypeIds: [],
       lockedDice: [],
+      lockedDiceTypeIds: [],
       roundScore: 0,
       isFarkle: false,
       isHotDice: false,
@@ -94,6 +115,7 @@ export class GameRoom {
       releaseTimer: null,
       isBot: false,
       color: color || DEFAULT_DICE_COLOR,
+      loadout: [...DEFAULT_LOADOUT],
     };
     this.players.push(player);
     this._broadcastState();
@@ -121,6 +143,7 @@ export class GameRoom {
       releaseTimer: null,
       isBot: true,
       color: persona.color || DEFAULT_DICE_COLOR,
+      loadout: [...DEFAULT_LOADOUT],
     };
     this.players.push(bot);
     this._broadcastState();
@@ -190,6 +213,13 @@ export class GameRoom {
     }
 
     if (this.phase === 'lobby') {
+      if (msg.type === ClientMsg.SET_LOADOUT) {
+        const v = validateLoadout(msg.payload);
+        if (!v) return this._sendError(player, 'bad_loadout');
+        player.loadout = v.loadout;
+        this._broadcastState();
+        return;
+      }
       if (msg.type === ClientMsg.START_GAME) return this._startGame(player, msg.payload);
       if (msg.type === ClientMsg.ADD_BOT) {
         const r = this.addBot();
@@ -266,6 +296,7 @@ export class GameRoom {
     }
     const v = validateStartGame(payload);
     if (!v) return this._sendError(player, 'invalid_target');
+    this.gameMode = v.mode;
     this.targetScore = v.targetScore;
     for (const p of this.players) p.totalScore = 0;
     // Персона бота уже выставлена в addBot или в _newGame — НЕ перерандомим здесь,
@@ -290,6 +321,7 @@ export class GameRoom {
 
   _newGame(player) {
     this.phase = 'lobby';
+    this.gameMode = DEFAULT_GAME_MODE;
     this.winnerId = null;
     this.turn = this._emptyTurn();
     for (const p of this.players) p.totalScore = 0;
@@ -318,7 +350,11 @@ export class GameRoom {
     this.turn.awaitingFirstRoll = false;
     this.turn.isHotDice = false;
     this.turn.isFarkle = false;
-    this.turn.diceOnTable = rollDice(DICE_COUNT);
+    const modeCfg = GAME_MODES[this.gameMode];
+    const loadout = modeCfg?.allowSpecialDice ? (player.loadout || DEFAULT_LOADOUT) : DEFAULT_LOADOUT;
+    const shuffled = shuffleArray([...loadout]);
+    this.turn.diceTypeIds = shuffled;
+    this.turn.diceOnTable = rollDiceWeighted(shuffled);
     this._pushHistory({ type: 'rolled', playerId: player.id, dice: [...this.turn.diceOnTable] });
     this._broadcastEvent({ type: 'rolled', playerId: player.id, dice: [...this.turn.diceOnTable] });
     if (isFarkle(this.turn.diceOnTable)) {
@@ -342,11 +378,15 @@ export class GameRoom {
     if (!hold.ok) return this._sendError(player, `bad_hold:${hold.reason}`);
 
     const heldValues = sel.map((i) => this.turn.diceOnTable[i]);
+    const heldTypeIds = sel.map((i) => this.turn.diceTypeIds[i] || 'normal');
     const remainingValues = this.turn.diceOnTable.filter((_, i) => !sel.includes(i));
+    const remainingTypeIds = this.turn.diceTypeIds.filter((_, i) => !sel.includes(i));
 
     this.turn.roundScore += hold.score;
     this.turn.lockedDice = [...this.turn.lockedDice, ...heldValues];
+    this.turn.lockedDiceTypeIds = [...this.turn.lockedDiceTypeIds, ...heldTypeIds];
     this.turn.diceOnTable = remainingValues;
+    this.turn.diceTypeIds = remainingTypeIds;
     this._pushHistory({
       type: 'held',
       playerId: player.id,
@@ -376,15 +416,20 @@ export class GameRoom {
     }
 
     // score_and_roll
+    const modeCfg2 = GAME_MODES[this.gameMode];
+    const loadout = modeCfg2?.allowSpecialDice ? (player.loadout || DEFAULT_LOADOUT) : DEFAULT_LOADOUT;
     if (this.turn.diceOnTable.length === 0) {
       this.turn.isHotDice = true;
       this.turn.lockedDice = [];
-      this.turn.diceOnTable = rollDice(DICE_COUNT);
+      this.turn.lockedDiceTypeIds = [];
+      const hotShuffled = shuffleArray([...loadout]);
+      this.turn.diceTypeIds = hotShuffled;
+      this.turn.diceOnTable = rollDiceWeighted(hotShuffled);
       this._pushHistory({ type: 'hot_dice', playerId: player.id });
       this._broadcastEvent({ type: 'hotdice', playerId: player.id, dice: [...this.turn.diceOnTable] });
     } else {
       this.turn.isHotDice = false;
-      this.turn.diceOnTable = rollDice(this.turn.diceOnTable.length);
+      this.turn.diceOnTable = rollDiceWeighted(this.turn.diceTypeIds);
       this._broadcastEvent({ type: 'rolled', playerId: player.id, dice: [...this.turn.diceOnTable] });
     }
 
@@ -469,6 +514,7 @@ export class GameRoom {
     const finished = this.phase === 'finished';
     return {
       phase: this.phase,
+      gameMode: this.gameMode,
       targetScore: this.targetScore,
       players: this.players.map((p) => {
         const base = {
@@ -478,6 +524,7 @@ export class GameRoom {
           totalScore: p.totalScore,
           isBot: !!p.isBot,
           color: p.color || DEFAULT_DICE_COLOR,
+          loadout: p.loadout || DEFAULT_LOADOUT,
         };
         if (p.isBot && finished) {
           base.mood = p.mood;
@@ -487,7 +534,13 @@ export class GameRoom {
         return base;
       }),
       currentPlayerId: this.phase === 'playing' ? this._currentPlayer()?.id : null,
-      turn: { ...this.turn, diceOnTable: [...this.turn.diceOnTable], lockedDice: [...this.turn.lockedDice] },
+      turn: {
+        ...this.turn,
+        diceOnTable: [...this.turn.diceOnTable],
+        diceTypeIds: [...this.turn.diceTypeIds],
+        lockedDice: [...this.turn.lockedDice],
+        lockedDiceTypeIds: [...this.turn.lockedDiceTypeIds],
+      },
       winnerId: this.winnerId,
       history: this.history.slice(-HISTORY_LIMIT),
     };

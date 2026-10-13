@@ -692,3 +692,227 @@ button.ghost:hover { color: var(--cream); border-color: var(--gold); }
   z-index: 20;
   box-shadow: var(--shadow);
 }
+
+/* Mode selector in lobby */
+.mode-selector {
+  margin: 12px 0;
+  padding: 12px 0;
+  border-top: 1px solid rgba(255,255,255,0.08);
+}
+.mode-label {
+  color: var(--cream-dim);
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+.mode-options {
+  display: flex;
+  gap: 12px;
+}
+.mode-option {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--wood-edge);
+  background: rgba(0,0,0,0.2);
+  color: var(--cream);
+  font-size: 13px;
+  transition: border-color 150ms, background 150ms;
+}
+.mode-option:hover {
+  border-color: var(--gold);
+  background: rgba(217,179,90,0.08);
+}
+.mode-option input[type="radio"] {
+  accent-color: var(--gold);
+}
+.mode-option:has(input:checked) {
+  border-color: var(--gold);
+  background: rgba(217,179,90,0.15);
+}
+
+/* Dice loadout in lobby */
+.dice-loadout {
+  margin: 12px 0;
+  padding: 12px 0;
+  border-top: 1px solid rgba(255,255,255,0.08);
+}
+.loadout-label {
+  color: var(--cream-dim);
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+.loadout-slots {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.loadout-slot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 8px;
+  border: 2px solid transparent;
+  transition: border-color 150ms, background 150ms;
+}
+.loadout-slot:hover {
+  border-color: var(--gold);
+  background: rgba(217,179,90,0.08);
+}
+.loadout-slot.special {
+  border-color: var(--gold-2);
+}
+.loadout-slot .die {
+  pointer-events: none;
+}
+.slot-name {
+  font-size: 10px;
+  color: var(--cream-dim);
+  max-width: 56px;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.loadout-hint {
+  color: var(--cream-dim);
+  font-size: 11px;
+  text-align: center;
+  margin-top: 8px;
+}
+
+/* Dice picker modal */
+.picker-inner {
+  max-width: 560px;
+  max-height: 80vh;
+  overflow-y: auto;
+  text-align: left;
+}
+.dice-catalog {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 12px 0;
+}
+.dice-type-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--wood-edge);
+  background: rgba(0,0,0,0.25);
+  cursor: pointer;
+  transition: border-color 150ms, background 150ms;
+}
+.dice-type-card:hover {
+  border-color: var(--gold);
+  background: rgba(217,179,90,0.08);
+}
+.dice-type-card.active {
+  border-color: var(--gold);
+  background: rgba(217,179,90,0.15);
+}
+.dice-type-card.disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.card-info {
+  flex: 1;
+  min-width: 0;
+}
+.card-name {
+  font-weight: 600;
+  color: var(--cream);
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+.card-desc {
+  color: var(--cream-dim);
+  font-size: 11px;
+  line-height: 1.4;
+}
+.prob-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 110px;
+  flex-shrink: 0;
+}
+.prob-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+}
+.bar-face {
+  color: var(--cream-dim);
+  width: 12px;
+  text-align: right;
+  flex-shrink: 0;
+}
+.bar-track {
+  flex: 1;
+  height: 6px;
+  background: rgba(255,255,255,0.08);
+  border-radius: 3px;
+  overflow: hidden;
+  min-width: 0;
+}
+.bar-fill {
+  height: 100%;
+  background: var(--gold);
+  border-radius: 3px;
+}
+.bar-pct {
+  color: var(--cream-dim);
+  width: 30px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+/* Mobile portrait */
+@media (max-width: 600px) {
+  #app { height: 100vh; height: 100dvh; }
+  body { overflow-y: auto; }
+  .game-table { padding: 8px; gap: 12px; }
+  .dice-area { gap: 8px; min-height: 80px; }
+  .locked-tray { min-height: 40px; padding: 4px 8px; }
+  .bottom-bar {
+    grid-template-columns: 1fr;
+    padding: 8px 12px;
+    padding-bottom: calc(8px + env(safe-area-inset-bottom));
+  }
+  .actions-panel { max-width: none; }
+  .action-btn .hotkey { display: none; }
+  .topbar .music-controls input[type="range"],
+  .topbar .brightness-control input[type="range"] { display: none; }
+  .brand .subtle { display: none; }
+  .lobby-card { min-width: 0; padding: 16px; }
+  .modal-inner { min-width: 0; padding: 16px; }
+  .picker-inner { max-width: 95vw; }
+  .log-panel { width: 100%; }
+  .turn-indicator { font-size: 14px; padding: 6px; }
+  .overlay { font-size: 36px; }
+  #game:not([hidden]) { overflow-y: auto; }
+  #lobby-select, #lobby-waiting { padding: 16px; }
+}
+
+/* Mobile landscape */
+@media (max-height: 500px) and (orientation: landscape) {
+  #app { height: 100vh; height: 100dvh; }
+  body { overflow-y: auto; }
+  .game-table { padding: 4px; gap: 8px; }
+  .dice-area { gap: 6px; min-height: 60px; }
+  .locked-tray { min-height: 36px; padding: 2px 6px; }
+  .bottom-bar { padding: 4px 8px; }
+  .turn-indicator { font-size: 12px; padding: 4px; }
+  .overlay { font-size: 28px; }
+  #game:not([hidden]) { overflow-y: auto; }
+}
