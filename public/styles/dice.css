@@ -93,11 +93,11 @@
   height: 8px;
 }
 .die.rolling {
-  /* Циклический шейк во время взбалтывания — длится столько, сколько играет звук */
   animation: shake-loop 220ms ease-in-out infinite;
+  opacity: 0.85;
 }
 @keyframes shake-loop {
-  0%, 100% { transform: rotate(0deg) translateY(0); }
+  0%, 100% { transform: rotate(0deg) translateY(0) scale(1); }
   25%      { transform: rotate(-14deg) translateY(-6px) scale(1.02); }
   50%      { transform: rotate(10deg)  translateY(3px)  scale(0.98); }
   75%      { transform: rotate(-7deg)  translateY(-2px) scale(1.01); }

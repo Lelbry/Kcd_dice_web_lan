@@ -319,6 +319,30 @@ function renderScorePanel(state, store) {
   panel.appendChild(table);
 }
 
+function scatterPositions(count, areaW, areaH, dieSize) {
+  const pad = dieSize * 0.15;
+  const minDist = dieSize * 1.2;
+  const positions = [];
+  for (let i = 0; i < count; i++) {
+    let x, y, ok;
+    for (let attempt = 0; attempt < 80; attempt++) {
+      x = pad + Math.random() * (areaW - dieSize - pad * 2);
+      y = pad + Math.random() * (areaH - dieSize - pad * 2);
+      ok = true;
+      for (const p of positions) {
+        const dx = x - p.x, dy = y - p.y;
+        if (Math.sqrt(dx * dx + dy * dy) < minDist) { ok = false; break; }
+      }
+      if (ok) break;
+    }
+    positions.push({
+      x, y,
+      rot: (Math.random() - 0.5) * 30,
+    });
+  }
+  return positions;
+}
+
 function renderDice(state, store) {
   const area = document.getElementById('dice-area');
   area.innerHTML = '';
@@ -338,14 +362,16 @@ function renderDice(state, store) {
 
   const diceTypeIds = turn.diceTypeIds || [];
 
+  const areaRect = area.getBoundingClientRect();
+  const isMobile = window.innerWidth <= 600;
+  const dieSize = isMobile ? 52 : 72;
+  const areaW = areaRect.width || 300;
+  const areaH = areaRect.height || 200;
+
   const diceKey = dice.join(',');
   if (!area._scatterSeeds || area._scatterKey !== diceKey) {
     area._scatterKey = diceKey;
-    area._scatterSeeds = dice.map(() => ({
-      rot: (Math.random() - 0.5) * 16,
-      tx: (Math.random() - 0.5) * 8,
-      ty: (Math.random() - 0.5) * 6,
-    }));
+    area._scatterSeeds = scatterPositions(dice.length, areaW, areaH, dieSize);
   }
 
   for (let i = 0; i < dice.length; i++) {
@@ -364,12 +390,18 @@ function renderDice(state, store) {
     applyDieColor(el, diceType?.color || DEFAULT_DICE_COLOR, diceType?.special);
     if (diceType?.special) el.title = diceType.name;
     el.dataset.idx = String(i);
+
+    const s = area._scatterSeeds[i];
     if (store.rolling) {
+      el.style.left = `${areaW / 2 - dieSize / 2}px`;
+      el.style.top = `${areaH / 2 - dieSize / 2}px`;
       el.style.animationDelay = `${i * 35}ms`;
     } else {
-      const s = area._scatterSeeds[i];
-      el.style.transform = `rotate(${s.rot}deg) translate(${s.tx}px, ${s.ty}px)`;
+      el.style.left = `${s.x}px`;
+      el.style.top = `${s.y}px`;
+      el.style.transform = `rotate(${s.rot}deg)`;
     }
+
     if (isMine && !blocked && !store.rolling) {
       el.addEventListener('click', () => store.toggleSelection(i));
     }
