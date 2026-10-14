@@ -11,7 +11,7 @@ import {
   validateLoadout,
   DEFAULT_DICE_COLOR,
 } from './protocol.js';
-import { rollBotPersona, moodLabel } from './bot.js';
+import { rollBotPersona, moodLabel, generateBotLoadout } from './bot.js';
 import { DICE_TYPES_MAP, DEFAULT_LOADOUT, rollWeighted } from './engine/dice-types.js';
 
 const FARKLE_PASS_DELAY_MS = 3500;
@@ -298,6 +298,7 @@ export class GameRoom {
     if (!v) return this._sendError(player, 'invalid_target');
     this.gameMode = v.mode;
     this.targetScore = v.targetScore;
+    const modeCfg = GAME_MODES[this.gameMode];
     for (const p of this.players) p.totalScore = 0;
     // Персона бота уже выставлена в addBot или в _newGame — НЕ перерандомим здесь,
     // иначе имя в лобби сменится при старте игры (баг отчёта пользователя).
@@ -306,6 +307,9 @@ export class GameRoom {
       if (p.isBot && !p.mood) {
         const persona = rollBotPersona(Math.random, this._currentBotNames().filter((n) => n !== p.firstName));
         p.mood = persona.mood;
+      }
+      if (p.isBot && modeCfg.allowSpecialDice) {
+        p.loadout = generateBotLoadout();
       }
     }
     // Случайный первый игрок при каждом старте партии (через crypto.randomInt).

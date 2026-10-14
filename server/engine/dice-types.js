@@ -1,4 +1,5 @@
 export const MAX_SPECIAL_DICE = 3;
+export const MAX_SAME_SPECIAL = 2;
 
 export const DICE_TYPES = [
   {
@@ -102,8 +103,13 @@ export function validateLoadoutArray(loadout) {
     return dt && dt.special;
   }).length;
   if (specialCount > MAX_SPECIAL_DICE) return null;
+  const counts = {};
   for (const id of loadout) {
     if (!DICE_TYPES_MAP[id]) return null;
+    if (id !== 'normal') {
+      counts[id] = (counts[id] || 0) + 1;
+      if (counts[id] > MAX_SAME_SPECIAL) return null;
+    }
   }
   return loadout;
 }

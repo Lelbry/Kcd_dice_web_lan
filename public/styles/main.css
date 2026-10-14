@@ -862,6 +862,15 @@ button.ghost:hover { color: var(--cream); border-color: var(--gold); }
   font-size: 13px;
   margin-bottom: 4px;
 }
+.card-stock {
+  font-weight: 400;
+  font-size: 11px;
+  color: var(--gold);
+  margin-left: 8px;
+}
+.dice-type-card.disabled .card-stock {
+  color: var(--cream-dim);
+}
 .card-desc {
   color: var(--cream-dim);
   font-size: 11px;

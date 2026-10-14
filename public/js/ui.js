@@ -1,7 +1,7 @@
 import { scoreSelection } from './engine/scoring.js';
 import { TRIPLE_BASE, multiplierForCount, GAME_MODES, DEFAULT_GAME_MODE } from './engine/rules.js';
 import { computeDieGradient, adjustLightness, hexToHsl } from './color.js';
-import { DICE_TYPES, DICE_TYPES_MAP, MAX_SPECIAL_DICE } from './engine/dice-types.js';
+import { DICE_TYPES, DICE_TYPES_MAP, MAX_SPECIAL_DICE, MAX_SAME_SPECIAL } from './engine/dice-types.js';
 
 const DEFAULT_DICE_COLOR = '#f4e8c1';
 
@@ -14,7 +14,7 @@ function populateTargets(mode) {
   for (const t of modeCfg.targets) {
     const opt = document.createElement('option');
     opt.value = String(t);
-    opt.textContent = canon.includes(t) ? `${t} (канон)` : String(t);
+    opt.textContent = String(t);
     targetSelect.appendChild(opt);
   }
   if (modeCfg.targets.includes(current)) targetSelect.value = String(current);
@@ -202,7 +202,10 @@ function openDicePicker(store, slotIdx) {
   for (const dt of DICE_TYPES) {
     const card = document.createElement('div');
     const isActive = loadout[slotIdx] === dt.id;
-    const atLimit = dt.special && !currentSlotIsSpecial && currentSpecials >= MAX_SPECIAL_DICE;
+    const atSpecialLimit = dt.special && !currentSlotIsSpecial && currentSpecials >= MAX_SPECIAL_DICE;
+    const sameCount = loadout.filter((id) => id === dt.id).length;
+    const atDupeLimit = dt.special && !isActive && sameCount >= MAX_SAME_SPECIAL;
+    const atLimit = atSpecialLimit || atDupeLimit;
     card.className = 'dice-type-card' + (isActive ? ' active' : '') + (atLimit ? ' disabled' : '');
 
     const preview = dieElement(3, ['locked']);
@@ -211,7 +214,8 @@ function openDicePicker(store, slotIdx) {
 
     const info = document.createElement('div');
     info.className = 'card-info';
-    info.innerHTML = `<div class="card-name">${escapeHtml(dt.name)}</div><div class="card-desc">${escapeHtml(dt.description)}</div>`;
+    const stockLabel = dt.special ? ` <span class="card-stock">в наличии: ${MAX_SAME_SPECIAL - sameCount + (isActive ? 1 : 0)}</span>` : '';
+    info.innerHTML = `<div class="card-name">${escapeHtml(dt.name)}${stockLabel}</div><div class="card-desc">${escapeHtml(dt.description)}</div>`;
     card.appendChild(info);
 
     const bars = document.createElement('div');

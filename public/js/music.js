@@ -39,6 +39,7 @@ export class MusicPlayer {
     this.lacrAudio.addEventListener('ended', () => this._onLacrimosaEnded());
 
     this.queue = [];
+    this.history = [];
     this.volume = clamp01(initialVolume);
     this.muted = !!initialMuted;
     this.lacrimosaPlaying = false;
@@ -88,6 +89,7 @@ export class MusicPlayer {
     this.lacrimosaUsed = false;
     this.lacrimosaPlaying = false;
     this.queue = shuffled(BG_TRACKS);
+    this.history = [];
     this.playing = true;
     this._playNextBg();
   }
@@ -131,6 +133,28 @@ export class MusicPlayer {
     this._playNextBg();
   }
 
+  /** Вернуться к предыдущему треку. */
+  prevTrack() {
+    if (!this.playing) return;
+    if (this.lacrimosaPlaying) {
+      this.lacrimosaPlaying = false;
+      try { this.lacrAudio.pause(); } catch {}
+      try { this.lacrAudio.currentTime = 0; } catch {}
+      this._playNextBg();
+      return;
+    }
+    if (this.history.length === 0) return;
+    const prev = this.history.pop();
+    const curSrc = this.bgAudio.src;
+    if (curSrc) {
+      const m = curSrc.match(/\/music\/(.+)$/);
+      if (m) this.queue.unshift(decodeURIComponent(m[1]));
+    }
+    try { this.bgAudio.pause(); } catch {}
+    this.bgAudio.src = trackUrl(prev);
+    this.bgAudio.play().catch(() => this._armUnlock());
+  }
+
   /** Имя текущего трека (без расширения), для подсказки в UI. */
   getCurrentTrackName() {
     const src = this.lacrimosaPlaying ? this.lacrAudio.src : this.bgAudio.src;
@@ -162,6 +186,11 @@ export class MusicPlayer {
   _playNextBg() {
     if (!this.playing) return;
     if (this.lacrimosaPlaying) return;
+    const curSrc = this.bgAudio.src;
+    if (curSrc) {
+      const m = curSrc.match(/\/music\/(.+)$/);
+      if (m) this.history.push(decodeURIComponent(m[1]));
+    }
     if (this.queue.length === 0) this.queue = shuffled(BG_TRACKS);
     const next = this.queue.shift();
     this.bgAudio.src = trackUrl(next);

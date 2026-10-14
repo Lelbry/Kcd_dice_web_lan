@@ -386,6 +386,15 @@ function bindUI() {
   }
   updateMuteIcon();
 
+  const prevBtn = document.getElementById('prev-btn');
+  if (prevBtn) {
+    prevBtn.addEventListener('click', () => {
+      music.prevTrack();
+      const name = music.getCurrentTrackName();
+      prevBtn.title = name ? `Предыдущий трек (сейчас: ${name})` : 'Предыдущий трек';
+    });
+  }
+
   const skipBtn = document.getElementById('skip-btn');
   if (skipBtn) {
     skipBtn.addEventListener('click', () => {
