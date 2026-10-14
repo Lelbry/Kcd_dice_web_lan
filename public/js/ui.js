@@ -10,10 +10,11 @@ function populateTargets(mode) {
   const modeCfg = GAME_MODES[mode] || GAME_MODES.classic;
   const current = Number(targetSelect.value);
   targetSelect.innerHTML = '';
+  const canon = modeCfg.canonTargets || [];
   for (const t of modeCfg.targets) {
     const opt = document.createElement('option');
     opt.value = String(t);
-    opt.textContent = String(t);
+    opt.textContent = canon.includes(t) ? `${t} (канон)` : String(t);
     targetSelect.appendChild(opt);
   }
   if (modeCfg.targets.includes(current)) targetSelect.value = String(current);

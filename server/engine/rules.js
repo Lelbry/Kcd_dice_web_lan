@@ -5,14 +5,16 @@ export const GAME_MODES = {
   classic: {
     id: 'classic',
     name: 'Классический',
-    targets: [2000, 3000, 4000],
+    targets: [2000, 3000, 4000, 7000, 10000],
+    canonTargets: [2000, 3000, 4000],
     defaultTarget: 2000,
     allowSpecialDice: false,
   },
   pocket: {
     id: 'pocket',
     name: 'Карманные кости',
-    targets: [4000, 6000, 8000],
+    targets: [4000, 6000, 8000, 10000, 15000],
+    canonTargets: [4000, 6000, 8000],
     defaultTarget: 4000,
     allowSpecialDice: true,
   },
