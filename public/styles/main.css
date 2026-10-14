@@ -409,6 +409,8 @@ button.large {
 .dice-area {
   position: relative;
   width: 100%;
+  max-width: 700px;
+  margin: 0 auto;
   min-height: 200px;
   flex: 1;
 }
@@ -434,9 +436,9 @@ button.large {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 10px 16px;
+  padding: 6px 16px;
   font-weight: 700;
-  font-size: 18px;
+  font-size: 14px;
   letter-spacing: 2px;
   text-transform: uppercase;
   border-bottom: 2px solid transparent;
@@ -457,8 +459,8 @@ button.large {
 }
 .turn-indicator .turn-label::before {
   content: '●';
-  margin-right: 10px;
-  font-size: 14px;
+  margin-right: 8px;
+  font-size: 10px;
   vertical-align: middle;
 }
 @keyframes turn-pulse {
