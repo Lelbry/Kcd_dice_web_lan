@@ -326,13 +326,15 @@ function renderScorePanel(state, store) {
 
 function scatterPositions(count, areaW, areaH, dieSize) {
   const pad = dieSize * 0.15;
-  const minDist = dieSize * 1.2;
+  const minDist = dieSize * 1.15;
   const positions = [];
+  const maxX = areaW - dieSize - pad;
+  const maxY = areaH - dieSize - pad;
   for (let i = 0; i < count; i++) {
     let x, y, ok;
-    for (let attempt = 0; attempt < 80; attempt++) {
-      x = pad + Math.random() * (areaW - dieSize - pad * 2);
-      y = pad + Math.random() * (areaH - dieSize - pad * 2);
+    for (let attempt = 0; attempt < 150; attempt++) {
+      x = pad + Math.random() * (maxX - pad);
+      y = pad + Math.random() * (maxY - pad);
       ok = true;
       for (const p of positions) {
         const dx = x - p.x, dy = y - p.y;
@@ -340,10 +342,30 @@ function scatterPositions(count, areaW, areaH, dieSize) {
       }
       if (ok) break;
     }
-    positions.push({
-      x, y,
-      rot: (Math.random() - 0.5) * 30,
-    });
+    positions.push({ x, y, rot: (Math.random() - 0.5) * 30 });
+  }
+  for (let iter = 0; iter < 50; iter++) {
+    let moved = false;
+    for (let i = 0; i < positions.length; i++) {
+      for (let j = i + 1; j < positions.length; j++) {
+        const a = positions[i], b = positions[j];
+        const dx = b.x - a.x, dy = b.y - a.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < minDist) {
+          const overlap = (minDist - dist) / 2 + 0.5;
+          const angle = dist > 0.1 ? Math.atan2(dy, dx) : Math.random() * Math.PI * 2;
+          const mx = Math.cos(angle) * overlap, my = Math.sin(angle) * overlap;
+          a.x -= mx; a.y -= my;
+          b.x += mx; b.y += my;
+          moved = true;
+        }
+      }
+    }
+    for (const p of positions) {
+      p.x = Math.max(pad, Math.min(maxX, p.x));
+      p.y = Math.max(pad, Math.min(maxY, p.y));
+    }
+    if (!moved) break;
   }
   return positions;
 }
