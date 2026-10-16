@@ -9,6 +9,7 @@ export class Store {
     this.connected = false;
     this.lastEvent = null;
     this.rolling = false;
+    this._rollingStartedAt = 0;
     this.listeners = [];
     this.myLoadout = [...DEFAULT_LOADOUT];
     this._loadLoadout();
@@ -33,6 +34,7 @@ export class Store {
 
   setRolling(v) {
     this.rolling = v;
+    if (v) this._rollingStartedAt = Date.now();
     this._notify();
   }
 
@@ -55,11 +57,11 @@ export class Store {
     if (prevDice !== newDice || prevPlayer !== newPlayer) {
       this.selection.clear();
       this.opponentSelection.clear();
+    }
+    if (prevPlayer !== newPlayer || snapshot?.phase !== 'playing') {
       this.rolling = false;
     }
-    if (snapshot?.phase !== 'playing') {
-      this.selection.clear();
-      this.opponentSelection.clear();
+    if (this.rolling && this._rollingStartedAt && Date.now() - this._rollingStartedAt > 3000) {
       this.rolling = false;
     }
     this.state = snapshot;
