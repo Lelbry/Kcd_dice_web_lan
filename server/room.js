@@ -256,6 +256,7 @@ export class GameRoom {
         return;
       }
       if (msg.type === ClientMsg.SURRENDER) {
+        if (this.farkleTimer) { clearTimeout(this.farkleTimer); this.farkleTimer = null; }
         const opponent = this.players.find((p) => p.id !== player.id);
         if (!opponent) return this._sendError(player, 'no_opponent');
         this.phase = 'finished';
@@ -288,6 +289,7 @@ export class GameRoom {
   }
 
   _startGame(player, payload) {
+    if (this.farkleTimer) { clearTimeout(this.farkleTimer); this.farkleTimer = null; }
     if (this.players.length < MAX_PLAYERS) {
       return this._sendError(player, 'need_two_players');
     }
@@ -324,6 +326,7 @@ export class GameRoom {
   }
 
   _newGame(player) {
+    if (this.farkleTimer) { clearTimeout(this.farkleTimer); this.farkleTimer = null; }
     this.phase = 'lobby';
     this.gameMode = DEFAULT_GAME_MODE;
     this.winnerId = null;
@@ -449,11 +452,11 @@ export class GameRoom {
     const lostScore = this.turn.roundScore;
     this._pushHistory({ type: 'farkle', playerId: player.id, lostScore });
     this._broadcastEvent({ type: 'farkle', playerId: player.id, lostScore });
-    this._broadcastState();
     this.farkleTimer = setTimeout(() => {
       this.farkleTimer = null;
       this._passTurn();
     }, FARKLE_PASS_DELAY_MS);
+    this._broadcastState();
   }
 
   _passTurn() {

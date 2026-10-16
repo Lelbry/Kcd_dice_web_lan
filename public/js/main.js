@@ -438,7 +438,7 @@ function bindUI() {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
     if (e.code === 'Space') {
       e.preventDefault();
-      if (store.state?.turn?.awaitingFirstRoll && store.isMyTurn()) {
+      if (store.state?.turn?.awaitingFirstRoll && store.isMyTurn() && !store.rolling) {
         net.send({ type: 'roll' });
       }
     } else if (e.code === 'KeyF') {

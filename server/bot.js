@@ -258,10 +258,14 @@ export class BotDriver {
         return;
       }
       const decision = decideBotAction(this.room.toSnapshot(), bot);
-      if (!decision) return;
+      if (!decision) {
+        this.timer = setTimeout(() => { this.timer = null; this.tick(); }, 1000);
+        return;
+      }
       this.room.handleMessage(bot, decision);
     } catch (err) {
       console.error('[bot] action failed:', err);
+      this.timer = setTimeout(() => { this.timer = null; this.tick(); }, 1000);
     }
   }
 

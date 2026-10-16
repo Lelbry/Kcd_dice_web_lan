@@ -55,10 +55,12 @@ export class Store {
     if (prevDice !== newDice || prevPlayer !== newPlayer) {
       this.selection.clear();
       this.opponentSelection.clear();
+      this.rolling = false;
     }
     if (snapshot?.phase !== 'playing') {
       this.selection.clear();
       this.opponentSelection.clear();
+      this.rolling = false;
     }
     this.state = snapshot;
     this._notify();
