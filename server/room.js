@@ -212,14 +212,16 @@ export class GameRoom {
       return;
     }
 
+    // SET_LOADOUT — приемлемо в любой фазе (применяется при следующем броске)
+    if (msg.type === ClientMsg.SET_LOADOUT) {
+      const v = validateLoadout(msg.payload);
+      if (!v) return this._sendError(player, 'bad_loadout');
+      player.loadout = v.loadout;
+      this._broadcastState();
+      return;
+    }
+
     if (this.phase === 'lobby') {
-      if (msg.type === ClientMsg.SET_LOADOUT) {
-        const v = validateLoadout(msg.payload);
-        if (!v) return this._sendError(player, 'bad_loadout');
-        player.loadout = v.loadout;
-        this._broadcastState();
-        return;
-      }
       if (msg.type === ClientMsg.START_GAME) return this._startGame(player, msg.payload);
       if (msg.type === ClientMsg.ADD_BOT) {
         const r = this.addBot();
