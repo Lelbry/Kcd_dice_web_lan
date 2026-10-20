@@ -211,6 +211,14 @@ tests/
   validate.test.js
 ```
 
+## Документация
+
+Подробные материалы по проекту — в папке [`docs/`](docs/):
+
+- [Разработка](docs/DEVELOPMENT.md) — архитектура, протокол, движок, тесты.
+- [Развёртывание](docs/DEPLOYMENT.md) — production-установка, nginx, Cloudflare, systemd.
+- [Справочник по костям](docs/DICE_REFERENCE.md) — правила и комбинации.
+
 ## Лицензия
 
 MIT — см. [LICENSE](LICENSE).
