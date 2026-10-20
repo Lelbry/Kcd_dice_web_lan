@@ -33,3 +33,5 @@ $RECYCLE.BIN/
 
 # local-only docs
 SSH-ENVIRONMENT-SETUP.md
+docs/DEPLOYMENT.md
+docs/DEPLOYMENT.docx
