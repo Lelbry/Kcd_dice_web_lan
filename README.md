@@ -2,9 +2,15 @@
 
 Веб-реализация игры в кости из Kingdom Come: Deliverance II. Два игрока, онлайн через лобби-коды или по локальной сети (Radmin VPN), игра в браузере без установки.
 
-![version](https://img.shields.io/badge/version-2.0.0-brightgreen)
+![version](https://img.shields.io/badge/version-2.9.0-brightgreen)
 ![license](https://img.shields.io/badge/license-MIT-blue)
 ![node](https://img.shields.io/badge/node-%E2%89%A520-green)
+
+## Что нового в v2.9.0 — Все кости KCD2
+
+- **40 костей** в режиме «Карманные кости»: добавлены 19 взвешенных (Лю/Ци/Фер, Святая Троица, пирог, перламутровая, Грозава и др.) и 10 косметических (зубы, Гуго, голова дьявола, Св. Стефан, кости художника)
+- **Символы на гранях** — у тематических костей вместо точек рисуются SVG-символы: пирожки, крест Антиоха, голова дьявола, зубы, нимб и т.д.
+- **Тесты баланса** — проверка весов каждой кости и симуляции партий; UI smoke на Playwright (`npm run test:e2e`)
 
 ## Что нового в v2.0.0 — Онлайн-лобби
 
@@ -181,7 +187,7 @@ npm start
 
 - **Сервер:** Node.js 20+, Express, `ws` (нативный WebSocket)
 - **Клиент:** vanilla HTML / CSS / ES-модули, без бандлера и фреймворков
-- **Тесты:** встроенный `node:test`
+- **Тесты:** встроенный `node:test` (`npm test`) + Playwright для UI smoke (`npm run test:e2e`)
 - **Авторитативный сервер:** клиент шлёт только намерения, сервер бросает кубики через `crypto.randomInt` и валидирует все ходы
 
 ## Структура
@@ -202,6 +208,7 @@ public/
   styles/           # main.css (layout) + dice.css (грани + tumble)
   js/
     main.js         # bootstrap, lobby flow, hotkeys
+    glyphs.js       # SVG-символы для граней тематических костей
     net.js          # WebSocket + reconnect backoff
     state.js        # snapshot store + selection
     ui.js           # рендер DOM по снапшоту
@@ -209,6 +216,9 @@ public/
 tests/
   scoring.test.js   # 40+ кейсов
   validate.test.js
+  weights.test.js   # распределение граней каждой кости
+  balance.test.js   # симуляции партий loadout vs loadout
+  e2e/smoke.spec.js # Playwright: лобби → бот → pie loadout → победа
 ```
 
 ## Документация
@@ -216,7 +226,7 @@ tests/
 Подробные материалы по проекту — в папке [`docs/`](docs/):
 
 - [Разработка](docs/DEVELOPMENT.md) — архитектура, протокол, движок, тесты.
-- [Справочник по костям](docs/DICE_REFERENCE.md) — правила и комбинации.
+- [Справочник по костям](docs/DICE_REFERENCE.md) — все 40 костей: веса, цвета, символы, lore.
 
 ## Лицензия
 

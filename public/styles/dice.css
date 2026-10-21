@@ -140,6 +140,38 @@
   justify-self: center;
 }
 
+/* Symbol glyphs (see public/js/glyphs.js) */
+.die { color: #2a1a0c; }
+.die.light-pips { color: #f4ece0; }
+.die-glyph {
+  grid-column: 1 / -1;
+  grid-row: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+}
+.die-glyph svg { width: 82%; height: 82%; filter: drop-shadow(0 1px 0 rgba(255,255,255,0.25)); }
+.pip-glyph { width: 16px; height: 16px; align-self: center; justify-self: center; display: flex; }
+.pip-glyph svg { width: 100%; height: 100%; }
+.die.locked .pip-glyph { width: 10px; height: 10px; }
+.die[data-type="pie"] { color: #f2c27a; }
+.die[data-type="devil_head"] { box-shadow: inset 0 -3px 0 rgba(0,0,0,0.3), 0 4px 6px rgba(0,0,0,0.45), 0 0 10px 2px #d01818; border-color: #8a1010; }
+.die[data-type="devil_head"] .glyph-devil { color: #c81e1e; --glyph-cut: #ffcc33; }
+.die[data-type="pearl"] {
+  background:
+    radial-gradient(circle at 30% 25%, rgba(255,255,255,0.85), transparent 45%),
+    conic-gradient(from 200deg, #f6e7ff, #dff6ff, #fff2dc, #f0dcff, #f6e7ff);
+}
+.die[data-type="pearl"] .pip { background: radial-gradient(circle at 30% 30%, #8a7aa0, #3e3350); }
+.die[data-type="pearl"] .glyph-pearl { color: #b8a8d8; }
+.die[data-type="kingdom_heaven"] { box-shadow: inset 0 2px 0 rgba(255,255,255,0.5), 0 4px 6px rgba(0,0,0,0.35), 0 0 10px 2px #8fc2ff; }
+.die[data-type="kingdom_heaven"] .glyph-sun,
+.die[data-type="st_stefan"] .glyph-cross-halo,
+.die[data-type="holy_trinity"] .glyph-trinity { color: #8a6a10; }
+.die[data-type="antioch"] .glyph-cross { color: #7a2a00; }
+
 .pip-top-left    { grid-column: 1; grid-row: 1; }
 .pip-top-right   { grid-column: 3; grid-row: 1; }
 .pip-middle-left { grid-column: 1; grid-row: 2; }
@@ -153,6 +185,8 @@
   .pip { width: 9px; height: 9px; }
   .die.locked { width: 36px; height: 36px; padding: 4px; }
   .die.locked .pip { width: 6px; height: 6px; }
+  .pip-glyph { width: 12px; height: 12px; }
+  .die.locked .pip-glyph { width: 8px; height: 8px; }
 }
 
 @media (max-height: 500px) and (orientation: landscape) {
