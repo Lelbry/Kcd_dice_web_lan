@@ -18,6 +18,8 @@ Production: `https://kcddice.ru` (owner — пользователь, депло
 - Клиент — vanilla HTML/CSS/ES-модули, без фреймворков
 - Клиентский JS должен работать в Chrome 74 (старый Яндекс.Браузер на Android):
   без `?.`, `??`, `||=`, `.at()`, `replaceAll`, `Object.hasOwn`, CSS `inset`.
+  Flex `gap` там не работает: для каждого flex-контейнера с `gap` нужен запасной
+  отступ в блоке `.no-flex-gap` в конце `main.css` (класс ставит скрипт в `index.html`).
   Проверяет `tests/compat.test.js`
 - `npm start` — поднимает сервер на `0.0.0.0:8080` (переопределить: `npm start -- --port 3000`)
 - `npm test` — `node:test` по `tests/{scoring,validate,bot,color,weights,balance,badges,compat}.test.js`
@@ -121,7 +123,7 @@ Production: `https://kcddice.ru` (owner — пользователь, депло
 
 При изменении любого CSS/JS в `public/` менять `?v=X.Y.Z` в трёх местах
 `public/index.html` одновременно (`main.css`, `dice.css`, `main.js`). Иначе у
-пользователей будет старый кэш. Сейчас стоит `?v=2.10.5`. Вложенные модули
+пользователей будет старый кэш. Сейчас стоит `?v=2.10.6`. Вложенные модули
 (`ui.js`, `engine/*.js`, …) без версии — сервер отдаёт `.js/.css/.html` с
 `Cache-Control: no-cache`, браузер и Cloudflare перепроверяют их по ETag.
 После деплоя, меняющего экспорты модулей, один раз сделать Purge Cache в Cloudflare. Для крупных релизов

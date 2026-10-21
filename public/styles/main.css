@@ -1323,3 +1323,49 @@ button.ghost:hover { color: var(--cream); border-color: var(--gold); }
 #boot-error button { padding: 6px 14px; }
 .boot-error-actions { display: flex; flex-wrap: wrap; }
 .boot-error-actions button { margin: 0 8px 8px 0; }
+
+/* Flex `gap` arrived in Chrome 84. Older browsers (Yandex Browser 19 = Chrome 74) get margins instead;
+   the inline script in index.html sets .no-flex-gap on <html> when flex gap is missing.
+   Margins go on the right/bottom so the margin-left: auto pushes stay intact. */
+.no-flex-gap .prob-bar > *:not(:last-child),
+.no-flex-gap .badge-charges > *:not(:last-child) { margin-right: 4px; }
+.no-flex-gap .brightness-control > *:not(:last-child),
+.no-flex-gap .mode-option > *:not(:last-child),
+.no-flex-gap .score-badge > *:not(:last-child),
+.no-flex-gap .help-tabs > *:not(:last-child) { margin-right: 6px; }
+.no-flex-gap .music-controls > *:not(:last-child),
+.no-flex-gap .form-row > *:not(:last-child),
+.no-flex-gap .lobby-player > *:not(:last-child),
+.no-flex-gap .lobby-code-display > *:not(:last-child),
+.no-flex-gap .lobby-link-display > *:not(:last-child),
+.no-flex-gap .locked-tray > *:not(:last-child),
+.no-flex-gap .action-btn.badge-action .label > *:not(:last-child) { margin-right: 8px; }
+.no-flex-gap .badge-chip > *:not(:last-child),
+.no-flex-gap .badges-reveal-row > *:not(:last-child),
+.no-flex-gap .info-head > *:not(:last-child) { margin-right: 10px; }
+.no-flex-gap .lobby-divider > *:not(:last-child),
+.no-flex-gap .action-btn > *:not(:last-child),
+.no-flex-gap .dice-type-card > *:not(:last-child),
+.no-flex-gap .badge-slot > *:not(:last-child),
+.no-flex-gap .badge-card > *:not(:last-child),
+.no-flex-gap .badge-bar > *:not(:last-child),
+.no-flex-gap .help-badge > *:not(:last-child),
+.no-flex-gap .mode-options > *:not(:last-child) { margin-right: 12px; }
+.no-flex-gap .prob-bars > *:not(:last-child),
+.no-flex-gap .badge-slot-info > *:not(:last-child) { margin-bottom: 2px; }
+.no-flex-gap .log-list > *:not(:last-child),
+.no-flex-gap .loadout-slot > *:not(:last-child) { margin-bottom: 4px; }
+.no-flex-gap .badges-reveal-list > *:not(:last-child) { margin-bottom: 6px; }
+.no-flex-gap .actions-panel > *:not(:last-child),
+.no-flex-gap .dice-catalog > *:not(:last-child) { margin-bottom: 8px; }
+.no-flex-gap .lobby-actions > *:not(:last-child) { margin-bottom: 16px; }
+.no-flex-gap .game-table > *:not(:last-child) { margin-bottom: 24px; }
+.no-flex-gap .loadout-slots { margin: 0 -4px; }
+.no-flex-gap .loadout-slots > * { margin: 0 4px 8px; }
+@media (max-width: 600px) {
+  .no-flex-gap .game-table > *:not(:last-child) { margin-bottom: 12px; }
+  .no-flex-gap .mode-options > *:not(:last-child) { margin-right: 0; margin-bottom: 6px; }
+}
+@media (max-height: 500px) and (orientation: landscape) {
+  .no-flex-gap .game-table > *:not(:last-child) { margin-bottom: 8px; }
+}

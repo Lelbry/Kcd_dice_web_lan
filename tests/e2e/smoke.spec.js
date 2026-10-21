@@ -114,7 +114,7 @@ test('classic mode lets you restyle dice with cosmetic dice only', async ({ page
 
   await openLobbyWithBot(page, 'classic');
   await expect(page.locator('#loadout-label')).toHaveText('Внешний вид костей:');
-  await expect(page.locator('#loadout-hint')).toContainText('все кости катятся честно');
+  await expect(page.locator('#loadout-hint')).toContainText('сменить облик');
 
   await page.locator('#loadout-slots .loadout-slot').nth(0).click();
   await expect(page.locator('#dice-catalog .dice-type-card[data-type="loaded"]')).toHaveCount(0);

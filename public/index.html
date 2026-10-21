@@ -4,11 +4,21 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Кости — KCD2</title>
-  <link rel="stylesheet" href="/styles/main.css?v=2.10.5" />
-  <link rel="stylesheet" href="/styles/dice.css?v=2.10.5" />
+  <link rel="stylesheet" href="/styles/main.css?v=2.10.6" />
+  <link rel="stylesheet" href="/styles/dice.css?v=2.10.6" />
   <script>
     // If the game script fails to start (old browser, stale cache, blocked file), say so on screen:
     // phones have no console to look at.
+    // Flex gap (Chrome 84+) can't be feature-queried in CSS; measure it and let main.css fall back to margins.
+    (function () {
+      var d = document.createElement('div');
+      d.style.cssText = 'display:flex;flex-direction:column;row-gap:1px;position:absolute;visibility:hidden';
+      d.appendChild(document.createElement('div'));
+      d.appendChild(document.createElement('div'));
+      document.documentElement.appendChild(d);
+      if (d.scrollHeight !== 1) document.documentElement.className += ' no-flex-gap';
+      document.documentElement.removeChild(d);
+    })();
     (function () {
       var errors = [];
       function remember(e) {
@@ -315,6 +325,6 @@
     <div id="reconnect-banner" hidden>Соединение прервано, переподключение…</div>
   </div>
 
-  <script type="module" src="/js/main.js?v=2.10.5"></script>
+  <script type="module" src="/js/main.js?v=2.10.6"></script>
 </body>
 </html>
