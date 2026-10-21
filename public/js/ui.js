@@ -2,6 +2,7 @@ import { scoreSelection } from './engine/scoring.js';
 import { TRIPLE_BASE, multiplierForCount, GAME_MODES, DEFAULT_GAME_MODE } from './engine/rules.js';
 import { computeDieGradient, adjustLightness, hexToHsl } from './color.js';
 import { DICE_TYPES, DICE_TYPES_MAP, MAX_SPECIAL_DICE, MAX_SAME_SPECIAL } from './engine/dice-types.js';
+import { PIP_GLYPHS, FACE_GLYPHS } from './glyphs.js';
 
 const DEFAULT_DICE_COLOR = '#f4e8c1';
 
@@ -33,11 +34,11 @@ function applyDieColor(el, baseHex, isSpecial = false) {
   el.style.setProperty('--die-bg-top', top);
   el.style.setProperty('--die-bg-bot', bot);
   el.style.setProperty('--die-edge', edge);
+  const [, , l] = hexToHsl(color);
+  if (l < 60) el.classList.add('light-pips');
   if (isSpecial) {
     el.classList.add('special-die');
     el.style.setProperty('--die-glow', color);
-    const [, , l] = hexToHsl(color);
-    if (l < 60) el.classList.add('light-pips');
   }
 }
 
@@ -50,13 +51,29 @@ const PIP_POSITIONS = {
   6: ['top-left', 'top-right', 'middle-left', 'middle-right', 'bottom-left', 'bottom-right'],
 };
 
-export function dieElement(value, classes = []) {
+function previewFace(dt) {
+  const faces = Object.keys(dt.faceGlyphs || {}).map(Number);
+  return faces.length ? Math.min(...faces) : 3;
+}
+
+export function dieElement(value, classes = [], typeId = null) {
   const el = document.createElement('div');
   el.className = ['die', ...classes].join(' ');
   el.dataset.value = String(value);
+  if (typeId) el.dataset.type = typeId;
+  const glyph = DICE_TYPES_MAP[typeId]?.faceGlyphs?.[value];
+  if (glyph && FACE_GLYPHS[glyph]) {
+    const g = document.createElement('span');
+    g.className = `die-glyph glyph-${glyph}`;
+    g.innerHTML = FACE_GLYPHS[glyph];
+    el.appendChild(g);
+    return el;
+  }
+  const pipGlyph = glyph && PIP_GLYPHS[glyph];
   for (const pos of PIP_POSITIONS[value] || []) {
     const pip = document.createElement('span');
-    pip.className = `pip pip-${pos}`;
+    pip.className = pipGlyph ? `pip-glyph glyph-${glyph} pip-${pos}` : `pip pip-${pos}`;
+    if (pipGlyph) pip.innerHTML = pipGlyph;
     el.appendChild(pip);
   }
   return el;
@@ -174,7 +191,7 @@ function renderLoadout(store) {
     const dt = DICE_TYPES_MAP[typeId];
     const slot = document.createElement('div');
     slot.className = 'loadout-slot' + (dt?.special ? ' special' : '');
-    const preview = dieElement(i + 1, ['locked']);
+    const preview = dieElement(i + 1, ['locked'], typeId);
     applyDieColor(preview, dt?.color || DEFAULT_DICE_COLOR, dt?.special);
     slot.appendChild(preview);
     const nameTag = document.createElement('span');
@@ -207,7 +224,7 @@ function openDicePicker(store, slotIdx) {
     const atLimit = atSpecialLimit || atDupeLimit;
     card.className = 'dice-type-card' + (isActive ? ' active' : '') + (atLimit ? ' disabled' : '');
 
-    const preview = dieElement(3, ['locked']);
+    const preview = dieElement(previewFace(dt), ['locked'], dt.id);
     applyDieColor(preview, dt.color, dt.special);
     card.appendChild(preview);
 
@@ -413,8 +430,8 @@ function renderDice(state, store) {
     if (opponentSelected) classes.push('opponent-selected');
     if (!isMine || blocked || store.rolling) classes.push('disabled');
     if (store.rolling) classes.push('rolling');
-    const el = dieElement(displayV, classes);
     const typeId = diceTypeIds[i] || 'normal';
+    const el = dieElement(displayV, classes, typeId);
     const diceType = DICE_TYPES_MAP[typeId];
     applyDieColor(el, diceType?.color || DEFAULT_DICE_COLOR, diceType?.special);
     if (diceType?.special) el.title = diceType.name;
@@ -463,8 +480,8 @@ function renderLockedTray(state, store) {
     label.textContent = 'Отложено:';
     tray.appendChild(label);
     for (let i = 0; i < locked.length; i++) {
-      const el = dieElement(locked[i], ['locked']);
       const typeId = lockedTypeIds[i] || 'normal';
+      const el = dieElement(locked[i], ['locked'], typeId);
       const dt = DICE_TYPES_MAP[typeId];
       applyDieColor(el, dt?.color || DEFAULT_DICE_COLOR, dt?.special);
       tray.appendChild(el);
@@ -479,8 +496,8 @@ function renderLockedTray(state, store) {
     for (let j = 0; j < oppIndices.length; j++) {
       const v = dice[oppIndices[j]];
       if (v === undefined) continue;
-      const el = dieElement(v, ['locked', 'tentative']);
       const typeId = diceTypeIds[oppIndices[j]] || 'normal';
+      const el = dieElement(v, ['locked', 'tentative'], typeId);
       const dt2 = DICE_TYPES_MAP[typeId];
       applyDieColor(el, dt2?.color || DEFAULT_DICE_COLOR, dt2?.special);
       tray.appendChild(el);
