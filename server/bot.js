@@ -1,7 +1,7 @@
 import { randomInt } from 'node:crypto';
 import { scoreSelection } from './engine/scoring.js';
 import { ClientMsg } from './protocol.js';
-import { DICE_TYPES, MAX_SPECIAL_DICE, MAX_SAME_SPECIAL } from './engine/dice-types.js';
+import { DICE_TYPES, MAX_SPECIAL_DICE, modeAllowsSpecialDice } from './engine/dice-types.js';
 
 export const MOODS = {
   cautious: {
@@ -277,26 +277,25 @@ export class BotDriver {
   }
 }
 
-/** Сгенерировать случайный лоадаут для бота в pocket-режиме. */
-export function generateBotLoadout(rng = Math.random) {
-  const specials = DICE_TYPES.filter((d) => d.special);
-  const numSpecial = 1 + Math.floor(rng() * MAX_SPECIAL_DICE);
+/** Случайный набор костей бота под режим: в classic — только внешний вид, иначе — до лимита шулерских. */
+export function generateBotLoadout(mode = 'pocket', rng = Math.random) {
   const loadout = Array(6).fill('normal');
-  const counts = {};
+  if (!modeAllowsSpecialDice(mode)) {
+    if (rng() < 0.5) return loadout;
+    const cosmetics = DICE_TYPES.filter((d) => !d.special && d.id !== 'normal');
+    const look = cosmetics[Math.floor(rng() * cosmetics.length)].id;
+    return loadout.map(() => look);
+  }
+  const pool = DICE_TYPES.filter((d) => d.special);
+  const numSpecial = 1 + Math.floor(rng() * MAX_SPECIAL_DICE);
   const slots = [0, 1, 2, 3, 4, 5];
   for (let i = slots.length - 1; i > 0; i--) {
     const j = Math.floor(rng() * (i + 1));
     [slots[i], slots[j]] = [slots[j], slots[i]];
   }
-  let placed = 0;
-  for (const slot of slots) {
-    if (placed >= numSpecial) break;
-    const available = specials.filter((d) => (counts[d.id] || 0) < MAX_SAME_SPECIAL);
-    if (available.length === 0) break;
-    const pick = available[Math.floor(rng() * available.length)];
-    loadout[slot] = pick.id;
-    counts[pick.id] = (counts[pick.id] || 0) + 1;
-    placed++;
+  for (let k = 0; k < numSpecial && pool.length > 0; k++) {
+    const [pick] = pool.splice(Math.floor(rng() * pool.length), 1);
+    loadout[slots[k]] = pick.id;
   }
   return loadout;
 }

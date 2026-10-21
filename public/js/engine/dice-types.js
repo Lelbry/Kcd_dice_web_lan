@@ -1,5 +1,7 @@
+import { GAME_MODES } from './rules.js';
+
 export const MAX_SPECIAL_DICE = 3;
-export const MAX_SAME_SPECIAL = 2;
+export const MAX_SAME_SPECIAL = 1;
 
 export const DICE_TYPES = [
   {
@@ -343,22 +345,44 @@ export const DICE_TYPES_MAP = Object.fromEntries(DICE_TYPES.map((d) => [d.id, d]
 
 export const DEFAULT_LOADOUT = Array(6).fill('normal');
 
-export function validateLoadoutArray(loadout) {
+export function modeAllowsSpecialDice(mode) {
+  return GAME_MODES[mode]?.allowSpecialDice !== false;
+}
+
+// Cosmetic dice (special: false) are unlimited; cheating dice are capped per mode.
+export function validateLoadoutArray(loadout, mode = 'pocket') {
   if (!Array.isArray(loadout) || loadout.length !== 6) return null;
-  const specialCount = loadout.filter((id) => {
-    const dt = DICE_TYPES_MAP[id];
-    return dt && dt.special;
-  }).length;
-  if (specialCount > MAX_SPECIAL_DICE) return null;
+  const allowSpecial = modeAllowsSpecialDice(mode);
   const counts = {};
+  let specials = 0;
   for (const id of loadout) {
-    if (!DICE_TYPES_MAP[id]) return null;
-    if (id !== 'normal') {
-      counts[id] = (counts[id] || 0) + 1;
-      if (counts[id] > MAX_SAME_SPECIAL) return null;
-    }
+    const dt = DICE_TYPES_MAP[id];
+    if (!dt) return null;
+    if (!dt.special) continue;
+    if (!allowSpecial) return null;
+    specials++;
+    counts[id] = (counts[id] || 0) + 1;
+    if (counts[id] > MAX_SAME_SPECIAL) return null;
   }
+  if (specials > MAX_SPECIAL_DICE) return null;
   return loadout;
+}
+
+// Replace every die the mode does not allow with a normal one, keeping the rest in place.
+export function sanitizeLoadout(loadout, mode) {
+  if (!Array.isArray(loadout) || loadout.length !== 6) return [...DEFAULT_LOADOUT];
+  const allowSpecial = modeAllowsSpecialDice(mode);
+  const counts = {};
+  let specials = 0;
+  return loadout.map((id) => {
+    const dt = DICE_TYPES_MAP[id];
+    if (!dt) return 'normal';
+    if (!dt.special) return id;
+    if (!allowSpecial || specials >= MAX_SPECIAL_DICE || (counts[id] || 0) >= MAX_SAME_SPECIAL) return 'normal';
+    specials++;
+    counts[id] = (counts[id] || 0) + 1;
+    return id;
+  });
 }
 
 export function rollWeighted(weights) {

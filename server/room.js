@@ -12,7 +12,7 @@ import {
   DEFAULT_DICE_COLOR,
 } from './protocol.js';
 import { rollBotPersona, moodLabel, generateBotLoadout } from './bot.js';
-import { DICE_TYPES_MAP, DEFAULT_LOADOUT, rollWeighted } from './engine/dice-types.js';
+import { DICE_TYPES_MAP, DEFAULT_LOADOUT, rollWeighted, sanitizeLoadout } from './engine/dice-types.js';
 
 const FARKLE_PASS_DELAY_MS = 3500;
 const RECONNECT_GRACE_MS = 60_000;
@@ -302,7 +302,6 @@ export class GameRoom {
     if (!v) return this._sendError(player, 'invalid_target');
     this.gameMode = v.mode;
     this.targetScore = v.targetScore;
-    const modeCfg = GAME_MODES[this.gameMode];
     for (const p of this.players) p.totalScore = 0;
     // Персона бота уже выставлена в addBot или в _newGame — НЕ перерандомим здесь,
     // иначе имя в лобби сменится при старте игры (баг отчёта пользователя).
@@ -312,9 +311,9 @@ export class GameRoom {
         const persona = rollBotPersona(Math.random, this._currentBotNames().filter((n) => n !== p.firstName));
         p.mood = persona.mood;
       }
-      if (p.isBot && modeCfg.allowSpecialDice) {
-        p.loadout = generateBotLoadout();
-      }
+      p.gameLoadout = p.isBot
+        ? generateBotLoadout(this.gameMode)
+        : sanitizeLoadout(p.loadout, this.gameMode);
     }
     // Случайный первый игрок при каждом старте партии (через crypto.randomInt).
     this.currentPlayerIdx = randomInt(0, this.players.length);
@@ -359,8 +358,7 @@ export class GameRoom {
     this.turn.awaitingFirstRoll = false;
     this.turn.isHotDice = false;
     this.turn.isFarkle = false;
-    const modeCfg = GAME_MODES[this.gameMode];
-    const loadout = modeCfg?.allowSpecialDice ? (player.loadout || DEFAULT_LOADOUT) : DEFAULT_LOADOUT;
+    const loadout = player.gameLoadout || DEFAULT_LOADOUT;
     const shuffled = shuffleArray([...loadout]);
     this.turn.diceTypeIds = shuffled;
     this.turn.diceOnTable = rollDiceWeighted(shuffled);
@@ -425,8 +423,7 @@ export class GameRoom {
     }
 
     // score_and_roll
-    const modeCfg2 = GAME_MODES[this.gameMode];
-    const loadout = modeCfg2?.allowSpecialDice ? (player.loadout || DEFAULT_LOADOUT) : DEFAULT_LOADOUT;
+    const loadout = player.gameLoadout || DEFAULT_LOADOUT;
     if (this.turn.diceOnTable.length === 0) {
       this.turn.isHotDice = true;
       this.turn.lockedDice = [];
@@ -533,7 +530,7 @@ export class GameRoom {
           totalScore: p.totalScore,
           isBot: !!p.isBot,
           color: p.color || DEFAULT_DICE_COLOR,
-          loadout: p.loadout || DEFAULT_LOADOUT,
+          loadout: (this.phase === 'lobby' ? p.loadout : p.gameLoadout) || DEFAULT_LOADOUT,
         };
         if (p.isBot && finished) {
           base.mood = p.mood;

@@ -76,9 +76,10 @@ export function validateStartGame(payload) {
 }
 
 export function validateLoadout(payload) {
-  const loadout = validateLoadoutArray(payload?.loadout);
+  const mode = GAME_MODE_IDS.includes(payload?.mode) ? payload.mode : 'pocket';
+  const loadout = validateLoadoutArray(payload?.loadout, mode);
   if (!loadout) return null;
-  return { loadout };
+  return { loadout: [...loadout], mode };
 }
 
 export function validateSelection(payload) {
