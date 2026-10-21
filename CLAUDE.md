@@ -118,7 +118,10 @@ Production: `https://kcddice.ru` (owner — пользователь, депло
 
 При изменении любого CSS/JS в `public/` менять `?v=X.Y.Z` в трёх местах
 `public/index.html` одновременно (`main.css`, `dice.css`, `main.js`). Иначе у
-пользователей будет старый кэш. Сейчас стоит `?v=2.10.0`. Для крупных релизов
+пользователей будет старый кэш. Сейчас стоит `?v=2.10.1`. Вложенные модули
+(`ui.js`, `engine/*.js`, …) без версии — сервер отдаёт `.js/.css/.html` с
+`Cache-Control: no-cache`, браузер и Cloudflare перепроверяют их по ETag.
+После деплоя, меняющего экспорты модулей, один раз сделать Purge Cache в Cloudflare. Для крупных релизов
 также бампать `version` в `package.json` и шильд в `README.md`.
 
 Деплой на `kcddice.ru`: `cd /opt/kcd-dice && git pull && sudo systemctl

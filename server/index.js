@@ -20,7 +20,14 @@ const PORT = Number(args.port);
 const HOST = args.host;
 
 const app = express();
-app.use(express.static(publicDir));
+// Nested ES modules are imported without ?v=, so browsers and Cloudflare must revalidate
+// code on every load; otherwise a stale module breaks the whole import graph after a deploy.
+const REVALIDATE_RE = /\.(?:js|css|html)$/;
+app.use(express.static(publicDir, {
+  setHeaders(res, filePath) {
+    if (REVALIDATE_RE.test(filePath)) res.setHeader('Cache-Control', 'no-cache');
+  },
+}));
 app.get('/healthz', (_req, res) => res.json({ ok: true, ts: Date.now() }));
 
 const server = createServer(app);
