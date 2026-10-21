@@ -196,3 +196,26 @@ test('phone layout: badges move into the score table and the action list', async
   const indicator = await page.locator('#turn-indicator').boundingBox();
   expect(indicator.height).toBeLessThan(60);
 });
+
+test('phone layout: the speaker button opens volume and brightness sliders', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await page.evaluate(() => localStorage.clear());
+  await page.reload();
+  await expect(page.locator('#volume-slider')).toBeHidden();
+  await page.locator('#mute-btn').click();
+  const panel = page.locator('#sound-panel');
+  await expect(panel).toBeVisible();
+
+  await panel.locator('.volume-input').fill('30');
+  await expect(page.locator('#volume-slider')).toHaveValue('30');
+  expect(await page.evaluate(() => localStorage.getItem('kcd2_music_volume'))).toBe('0.3');
+  await panel.locator('.brightness-input').fill('80');
+  expect(await page.evaluate(() => localStorage.getItem('kcd2_dice_brightness'))).toBe('80');
+
+  await panel.locator('#panel-mute-btn').click();
+  await expect(page.locator('#mute-btn')).toHaveText('🔇');
+
+  await page.locator('#lobby-select h1').click();
+  await expect(panel).toBeHidden();
+});
