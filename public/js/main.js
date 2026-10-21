@@ -560,3 +560,4 @@ if (urlLobby) {
 
 net.connect();
 render(store, lobbyCode);
+window.__kcdBooted = true;
