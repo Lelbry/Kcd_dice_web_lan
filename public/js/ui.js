@@ -140,11 +140,10 @@ function renderLobby(state, store) {
     modeSelector.addEventListener('change', (e) => {
       const radio = e.target.closest('input[name="game-mode"]');
       if (!radio) return;
-      store._selectedMode = radio.value;
+      store.setSelectedMode(radio.value);
       populateTargets(radio.value);
       const loadoutEl = document.getElementById('dice-loadout');
       if (loadoutEl) loadoutEl.hidden = radio.value !== 'pocket';
-      store._notify();
     });
   }
 
@@ -263,12 +262,14 @@ function renderTurnIndicator(state, store) {
   const isMine = store.isMyTurn();
   el.classList.toggle('mine', isMine);
   el.classList.toggle('theirs', !isMine);
+  const modeCfg = GAME_MODES[state.gameMode] || GAME_MODES[DEFAULT_GAME_MODE];
+  const modeTag = ` · ${modeCfg.name}`;
   if (isMine) {
     const hint = state.turn?.awaitingFirstRoll ? '  (Space = бросить)' : '';
-    textEl.textContent = `Ваш ход${hint}`;
+    textEl.textContent = `Ваш ход${modeTag}${hint}`;
   } else {
     const oppName = nameOf(state, state.currentPlayerId);
-    textEl.textContent = `Ход: ${oppName}`;
+    textEl.textContent = `Ход: ${oppName}${modeTag}`;
   }
 }
 

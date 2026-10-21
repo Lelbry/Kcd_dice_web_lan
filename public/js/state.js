@@ -1,4 +1,7 @@
 import { DEFAULT_LOADOUT, MAX_SPECIAL_DICE, DICE_TYPES_MAP } from './engine/dice-types.js';
+import { GAME_MODES, DEFAULT_GAME_MODE } from './engine/rules.js';
+
+const MODE_STORAGE_KEY = 'kcd2_selected_mode';
 
 export class Store {
   constructor() {
@@ -13,6 +16,7 @@ export class Store {
     this.listeners = [];
     this.myLoadout = [...DEFAULT_LOADOUT];
     this._loadLoadout();
+    this._selectedMode = this._loadSelectedMode();
   }
 
   _loadLoadout() {
@@ -30,6 +34,23 @@ export class Store {
 
   _saveLoadout() {
     try { localStorage.setItem('kcd2_loadout', JSON.stringify(this.myLoadout)); } catch {}
+  }
+
+  _loadSelectedMode() {
+    try {
+      const saved = localStorage.getItem(MODE_STORAGE_KEY);
+      if (saved && GAME_MODES[saved]) return saved;
+    } catch {}
+    // Если loadout содержит специальные кости — явный сигнал, что игрок хочет pocket.
+    const hasSpecial = this.myLoadout.some((id) => DICE_TYPES_MAP[id]?.special);
+    return hasSpecial ? 'pocket' : DEFAULT_GAME_MODE;
+  }
+
+  setSelectedMode(mode) {
+    if (!GAME_MODES[mode]) return;
+    this._selectedMode = mode;
+    try { localStorage.setItem(MODE_STORAGE_KEY, mode); } catch {}
+    this._notify();
   }
 
   setRolling(v) {
