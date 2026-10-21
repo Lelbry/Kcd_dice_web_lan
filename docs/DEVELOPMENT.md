@@ -29,6 +29,8 @@ server/
     rules.js        константы (цели, базовые очки, режимы, multiplier)
     scoring.js      scoreSelection(dice) → {score, valid, breakdown}
     validate.js     canHold / canBank / checkWin / isFarkle
+    dice-types.js   каталог костей, лимиты loadout, rollWeighted
+    badges.js       каталог блях, комбинации, правила активации
 
 public/
   index.html        вся разметка (lobby-select, lobby-waiting, игра, модалки)
@@ -40,6 +42,9 @@ public/
     net.js          WebSocket + reconnect backoff
     state.js        Store: snapshot + локальный selection + loadout
     ui.js           рендер DOM по snapshot
+    badges.js       UI блях: выбор, панель, кнопка, вкладка помощи
+    infocard.js     всплывающая карточка «что это за кость / бляха»
+    glyphs.js       SVG-символы граней
     color.js        hex→HSL + вычисление градиента грани
     music.js        фоновый плеер (треки, next/prev, volume)
     engine/         зеркало серверного движка (preview-скор)
@@ -49,12 +54,18 @@ tests/
   validate.test.js  canHold/canBank/isFarkle
   bot.test.js       chooseGreedySelection, decideBotAction
   color.test.js     hex↔HSL, computeDieGradient
+  weights.test.js   распределение граней каждой кости
+  balance.test.js   симуляции loadout vs loadout
+  badges.test.js    движок блях + партии бот-vs-бот через GameRoom
+  e2e/smoke.spec.js Playwright: pocket, classic-косметика, бляхи, телефон
   ws-smoke.mjs      ручной end-to-end через реальный ws
   bot-smoke.mjs     прогон бота против бота
   rng-audit.mjs     прогон rollWeighted для аудита перекосов
 
 scripts/
   simulate.js       симулятор бот-vs-бот для оценки длительности партии
+  sim-core.js       ядро симуляции (импортируется тестами)
+  badge-balance.js  процент побед каждой бляхи против игрока без бляхи
 ```
 
 ## 3. FSM комнаты
@@ -62,9 +73,13 @@ scripts/
 Фазы: `lobby → playing → finished → lobby (new_game)`.
 
 - **`lobby`**: игроки присоединились, можно `ADD_BOT`/`REMOVE_BOT`, `SET_LOADOUT`,
-  `SET_PROFILE`, `START_GAME`. Старт разрешён только если 2 коннектных игрока.
+  `SET_BADGE`, `SET_PROFILE`, `START_GAME`. Старт разрешён только если 2
+  коннектных игрока. На старте каждому игроку считается `gameLoadout` —
+  его `loadout`, очищенный под режим (`sanitizeLoadout`), — и бляха (`_setupBadge`).
 - **`playing`**: активный ход — `ROLL` → `SCORE_AND_ROLL` ×N → `SCORE_AND_BANK`
-  или farkle (авто-pass через 3.5s). Параллельно принимаются `SELECT_PREVIEW`
+  или farkle (авто-pass через 3.5s; 6s, если у игрока есть заряд Бляхи
+  воскрешения). В режиме `badge` принимается `ACTIVATE_BADGE` — в том числе во
+  время farkle-паузы. Параллельно принимаются `SELECT_PREVIEW`
   (ретранслируется противнику для live-подсветки) и `SURRENDER`. `SET_LOADOUT`
   тоже разрешён (применится при следующем броске этого игрока).
 - **`finished`**: только `NEW_GAME` возвращает в lobby.
@@ -85,7 +100,9 @@ scripts/
 | `join_lobby` | `{code}` | до join |
 | `hello` | `{clientId, name, color?}` | после join (обязательно) |
 | `set_profile` | `{name?, color?}` | любая |
-| `set_loadout` | `{loadout: [id×6]}` | любая |
+| `set_loadout` | `{loadout: [id×6], mode?}` — проверяется по правилам режима | любая |
+| `set_badge` | `{badgeId}` | любая (применяется на старте партии) |
+| `activate_badge` | `{diceIndex?}` — индекс кости для превращения/обмена | playing, режим `badge` |
 | `add_bot` / `remove_bot` | — | lobby |
 | `start_game` | `{mode, targetScore}` | lobby |
 | `roll` | — | playing (свой ход, awaitingFirstRoll) |
@@ -102,7 +119,7 @@ scripts/
 |-----|---------|
 | `lobby_info` | `{code, action: 'created' | 'joined'}` |
 | `state` | полный snapshot комнаты (`GameRoom.toSnapshot()`) |
-| `event` | `{type: 'rolled' | 'hotdice' | 'farkle' | 'banked' | 'won' | 'surrendered' | 'select_preview' | 'joined' | 'reconnected', …}` |
+| `event` | `{type: 'rolled' | 'hotdice' | 'farkle' | 'banked' | 'won' | 'surrendered' | 'select_preview' | 'joined' | 'reconnected' | 'badge_activated' | 'badge_blocked', …}` |
 | `error` | `{code}` — машинный код ошибки |
 | `ping` | — (ждёт `pong` 10 секунд) |
 
@@ -120,7 +137,10 @@ Reconnect-grace 60s: при обрыве игрок помечается `connec
 - 4/5/6 одинаковых: ×2, ×4, ×8 от тройки
 - Стриты 1-5 / 2-6 / 1-6: 500 / 750 / 1500
 - Режимы — объект `GAME_MODES` с `targets`, `canonTargets` (кнопки по умолчанию),
-  `defaultTarget`, `allowSpecialDice`
+  `defaultTarget`, `allowSpecialDice`, `badges`:
+  - `classic` — только косметические кости (`allowSpecialDice: false`)
+  - `pocket` — до 3 шулерских костей
+  - `badge` — как pocket + одна бляха у каждого (`badges: true`)
 
 ### Скоринг (`engine/scoring.js`)
 
@@ -140,12 +160,23 @@ Reconnect-grace 60s: при обрыве игрок помечается `connec
 - `DICE_TYPES` — массив записей `{id, name, description, weights, color, special}`
 - `DICE_TYPES_MAP` — тот же массив как объект-словарь по `id`
 - `DEFAULT_LOADOUT = ['normal' × 6]`
-- `validateLoadoutArray(loadout)` — вернёт `loadout` или `null`. Проверяет:
+- `validateLoadoutArray(loadout, mode)` — вернёт `loadout` или `null`. Проверяет:
   - длина 6
   - все id знакомы
-  - не больше `MAX_SPECIAL_DICE = 3` специальных
-  - не больше `MAX_SAME_SPECIAL = 2` одинаковых не-`normal` костей
+  - в режиме без шулерских костей (`classic`) — ни одной `special`
+  - не больше `MAX_SPECIAL_DICE = 3` шулерских и не больше `MAX_SAME_SPECIAL = 1`
+    одинаковой шулерской; косметические (`special: false`) без ограничений
+- `sanitizeLoadout(loadout, mode)` — заменяет запрещённые режимом кости на `normal`
 - `rollWeighted(weights)` — взвешенный бросок по целым весам (`Math.random`)
+
+### Бляхи (`engine/badges.js`)
+
+- `BADGES` — 8 блях v1 `{id, name, description, kind: 'active'|'passive', charges?, target?, combos?, startBonus?, shield?}`
+- `scoreWithBadge(values, badgeId)` / `canHoldWithBadge(selection, roll, badgeId)` —
+  скоринг с дополнительными комбинациями («Разрез», «Виселица»)
+- `activationBlocker(badgeId, {charges, turn, isMyTurn, diceIndex})` — почему бляху
+  нельзя применить сейчас (или `null`). Одна функция для сервера, клиента и бота.
+- Полный каталог KCD2 и roadmap — `docs/BADGE_REFERENCE.md`.
 
 **Инвариант:** `server/engine/*.js` и `public/js/engine/*.js` — одинаковые
 модули (кроме `validate.js`, где клиент экспортирует только `canHold` +
@@ -170,31 +201,46 @@ Reconnect-grace 60s: при обрыве игрок помечается `connec
 - `BotDriver.tick` слушает `_onStateChanged` комнаты и действует с задержкой
   (`firstRoll 600–1200ms`, `postRoll 2500–3500ms`, последняя — чтобы живой
   игрок успел посмотреть на выпавшие кости и услышать звук).
-- `generateBotLoadout(rng)` — случайный pocket-loadout: 1..3 специальных,
-  уважает `MAX_SAME_SPECIAL`.
+- `generateBotLoadout(mode, rng)` — в classic случайный косметический облик, иначе
+  1..3 разных шулерских кости.
+- В режиме `badge` бот берёт случайную бляху; `decideBotBadge` решает, когда
+  применить активную (удвоение — при отложенных ≥300, воскрешение — при зонке с
+  ≥250 очков хода, превращение/обмен — когда до hot dice мешает одна кость).
 
 ## 7. Клиент
 
 - `clientId` — UUID, сохраняется в `localStorage` ключом `kcd2_client_id`.
   Используется для реконнекта в ту же сессию.
-- `kcd2_player_name`, `kcd2_dice_brightness`, `kcd2_loadout`,
-  `kcd2_music_volume`, `kcd2_music_muted` — настройки игрока в `localStorage`.
+- `kcd2_player_name`, `kcd2_dice_brightness`, `kcd2_loadout_<mode>` (свой набор
+  костей на каждый режим; старый `kcd2_loadout` мигрируется один раз),
+  `kcd2_selected_mode`, `kcd2_badge`, `kcd2_music_volume`, `kcd2_music_muted` —
+  настройки игрока в `localStorage`.
 - `Store.setSnapshot` сбрасывает `selection` при смене набора костей или
   текущего игрока, и опускает `rolling` через ~3 сек на случай застревания.
-- Preview-скор на клиенте использует зеркальный `scoreSelection` → ровно то же
-  число, что потом подтвердит сервер.
+- Preview-скор на клиенте использует зеркальный `scoreSelection` (в режиме бляхи —
+  `scoreWithBadge` и ×2 при взведённом удвоении) → ровно то же число, что потом
+  подтвердит сервер.
+- Кости, которые нельзя выбрать (кости соперника, отложенные), и бляхи открывают
+  `infocard.js` по клику.
+- На ширине ≤600px панель блях над столом скрыта: бляхи — строкой в табло,
+  активная — кнопкой в списке действий.
 - WebSocket URL — `${scheme}://${location.host}`, scheme автоматически
   `wss` под `https`, иначе `ws` (production сейчас по `ws://`, без HTTPS —
   см. `DEPLOYMENT.md`, причины там).
 
 ## 8. Тесты
 
-`npm test` запускает четыре файла:
+`npm test` запускает:
 
 - `scoring.test.js` — все комбинации, стриты, hot dice
-- `validate.test.js` — `canHold`/`canBank`/`isFarkle`
-- `bot.test.js` — greedy selection, decideBotAction, loadout-генерация
+- `validate.test.js` — `canHold`/`canBank`/`isFarkle`, loadout по режимам
+- `bot.test.js` — greedy selection, decideBotAction
 - `color.test.js` — hex↔HSL, градиент грани
+- `weights.test.js` — распределение граней каждой кости
+- `balance.test.js` — симуляции loadout против loadout
+- `badges.test.js` — движок блях, комната, партии бот-vs-бот
+
+`npm run test:e2e` — Playwright (сам поднимает сервер на :8091).
 
 Ручные скрипты (не входят в `npm test`, запускать отдельно):
 
@@ -205,6 +251,8 @@ Reconnect-grace 60s: при обрыве игрок помечается `connec
   перекосов (используется, когда меняем веса)
 - `node scripts/simulate.js` — симуляция партий бот-vs-бот, выводит
   среднюю длительность партии при разных целях/loadout'ах
+- `node scripts/badge-balance.js [N]` — процент побед каждой бляхи против
+  игрока без бляхи (настоящая `GameRoom`, ~3 минуты на 400 партий)
 
 ## 9. Инварианты и известные тонкости
 

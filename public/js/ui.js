@@ -1,8 +1,11 @@
 import { scoreSelection } from './engine/scoring.js';
 import { TRIPLE_BASE, multiplierForCount, GAME_MODES, DEFAULT_GAME_MODE } from './engine/rules.js';
 import { computeDieGradient, adjustLightness, hexToHsl } from './color.js';
-import { DICE_TYPES, DICE_TYPES_MAP, MAX_SPECIAL_DICE, MAX_SAME_SPECIAL } from './engine/dice-types.js';
+import { DICE_TYPES, DICE_TYPES_MAP, MAX_SPECIAL_DICE, MAX_SAME_SPECIAL, modeAllowsSpecialDice } from './engine/dice-types.js';
 import { PIP_GLYPHS, FACE_GLYPHS } from './glyphs.js';
+import { scoreWithBadge, BADGES_MAP } from './engine/badges.js';
+import { renderBadgeLobby, renderBadgeBar, renderBadgeAction, renderBadgesReveal, badgeHistoryText, scoreBadge } from './badges.js';
+import { toggleInfoCard } from './infocard.js';
 
 const DEFAULT_DICE_COLOR = '#f4e8c1';
 
@@ -159,8 +162,6 @@ function renderLobby(state, store) {
       if (!radio) return;
       store.setSelectedMode(radio.value);
       populateTargets(radio.value);
-      const loadoutEl = document.getElementById('dice-loadout');
-      if (loadoutEl) loadoutEl.hidden = radio.value !== 'pocket';
     });
   }
 
@@ -169,14 +170,41 @@ function renderLobby(state, store) {
   if (modeRadio && !modeRadio.checked) modeRadio.checked = true;
 
   const loadoutEl = document.getElementById('dice-loadout');
-  if (loadoutEl) loadoutEl.hidden = currentMode !== 'pocket';
+  if (loadoutEl) loadoutEl.hidden = false;
+  renderLoadoutTexts(currentMode);
 
   populateTargets(currentMode);
 
   const startBtn = document.getElementById('start-btn');
   startBtn.disabled = state.players.length < 2 || !state.players.every((p) => p.connected);
 
-  if (currentMode === 'pocket') renderLoadout(store);
+  renderLoadout(store);
+  renderBadgeLobby(store, currentMode);
+}
+
+const LOADOUT_TEXTS = {
+  cosmetic: {
+    label: 'Внешний вид костей:',
+    hint: 'Нажмите на кость, чтобы сменить её облик — пирог, зуб, кость художника… Шулерских здесь нет: все кости катятся честно.',
+    picker: 'Внешний вид кости',
+  },
+  cheating: {
+    label: 'Мои кости:',
+    hint: `До ${MAX_SPECIAL_DICE} шулерских костей, каждая — в единственном экземпляре. Кости «только для вида» — без ограничений.`,
+    picker: 'Выбрать кость',
+  },
+};
+
+function loadoutTexts(mode) {
+  return modeAllowsSpecialDice(mode) ? LOADOUT_TEXTS.cheating : LOADOUT_TEXTS.cosmetic;
+}
+
+function renderLoadoutTexts(mode) {
+  const t = loadoutTexts(mode);
+  const label = document.getElementById('loadout-label');
+  const hint = document.getElementById('loadout-hint');
+  if (label) label.textContent = t.label;
+  if (hint) hint.textContent = t.hint;
 }
 
 let _pickerSlotIdx = 0;
@@ -196,7 +224,7 @@ function renderLoadout(store) {
     slot.appendChild(preview);
     const nameTag = document.createElement('span');
     nameTag.className = 'slot-name';
-    nameTag.textContent = dt?.special ? dt.name : '';
+    nameTag.textContent = typeId !== 'normal' ? dt?.name || '' : '';
     slot.title = dt?.name || '';
     slot.appendChild(nameTag);
     slot.addEventListener('click', () => openDicePicker(store, i));
@@ -204,62 +232,130 @@ function renderLoadout(store) {
   }
 }
 
+function pickerGroup(catalog, title) {
+  const h = document.createElement('div');
+  h.className = 'catalog-group';
+  h.textContent = title;
+  catalog.appendChild(h);
+}
+
 function openDicePicker(store, slotIdx) {
   _pickerSlotIdx = slotIdx;
+  const mode = store._selectedMode || DEFAULT_GAME_MODE;
+  const allowSpecial = modeAllowsSpecialDice(mode);
   const modal = document.getElementById('dice-picker-modal');
   const catalog = document.getElementById('dice-catalog');
+  const title = document.getElementById('dice-picker-title');
+  if (title) title.textContent = loadoutTexts(mode).picker;
   modal.hidden = false;
   catalog.innerHTML = '';
 
-  const loadout = store.getLoadout();
+  const loadout = store.getLoadout(mode);
   const currentSpecials = loadout.filter((id) => DICE_TYPES_MAP[id]?.special).length;
   const currentSlotIsSpecial = DICE_TYPES_MAP[loadout[slotIdx]]?.special;
 
-  for (const dt of DICE_TYPES) {
-    const card = document.createElement('div');
-    const isActive = loadout[slotIdx] === dt.id;
-    const atSpecialLimit = dt.special && !currentSlotIsSpecial && currentSpecials >= MAX_SPECIAL_DICE;
-    const sameCount = loadout.filter((id) => id === dt.id).length;
-    const atDupeLimit = dt.special && !isActive && sameCount >= MAX_SAME_SPECIAL;
-    const atLimit = atSpecialLimit || atDupeLimit;
-    card.className = 'dice-type-card' + (isActive ? ' active' : '') + (atLimit ? ' disabled' : '');
+  const cheating = allowSpecial ? DICE_TYPES.filter((d) => d.special) : [];
+  const cosmetic = DICE_TYPES.filter((d) => !d.special);
+  const groups = allowSpecial
+    ? [['Шулерские кости', cheating], ['Только внешний вид — играют как обычные', cosmetic]]
+    : [[null, cosmetic]];
 
-    const preview = dieElement(previewFace(dt), ['locked'], dt.id);
-    applyDieColor(preview, dt.color, dt.special);
-    card.appendChild(preview);
-
-    const info = document.createElement('div');
-    info.className = 'card-info';
-    const stockLabel = dt.special ? ` <span class="card-stock">в наличии: ${MAX_SAME_SPECIAL - sameCount + (isActive ? 1 : 0)}</span>` : '';
-    info.innerHTML = `<div class="card-name">${escapeHtml(dt.name)}${stockLabel}</div><div class="card-desc">${escapeHtml(dt.description)}</div>`;
-    card.appendChild(info);
-
-    const bars = document.createElement('div');
-    bars.className = 'prob-bars';
-    const total = dt.weights.reduce((s, w) => s + w, 0);
-    for (let f = 0; f < 6; f++) {
-      const pct = total > 0 ? Math.round((dt.weights[f] / total) * 100) : 0;
-      const bar = document.createElement('div');
-      bar.className = 'prob-bar';
-      bar.innerHTML = `<span class="bar-face">${f + 1}</span><div class="bar-track"><div class="bar-fill" style="width:${pct}%"></div></div><span class="bar-pct">${pct}%</span>`;
-      bars.appendChild(bar);
-    }
-    card.appendChild(bars);
-
-    if (!atLimit) {
-      card.addEventListener('click', () => {
-        if (store.setLoadoutSlot(_pickerSlotIdx, dt.id)) {
-          modal.hidden = true;
-          store._notify();
-        }
-      });
-    }
-    catalog.appendChild(card);
+  for (const [groupTitle, dice] of groups) {
+    if (groupTitle) pickerGroup(catalog, groupTitle);
+    for (const dt of dice) catalog.appendChild(diceCard(store, dt, loadout, slotIdx, currentSpecials, currentSlotIsSpecial, modal));
   }
+}
+
+function diceCard(store, dt, loadout, slotIdx, currentSpecials, currentSlotIsSpecial, modal) {
+  const card = document.createElement('div');
+  const isActive = loadout[slotIdx] === dt.id;
+  const atSpecialLimit = dt.special && !currentSlotIsSpecial && currentSpecials >= MAX_SPECIAL_DICE;
+  const sameCount = loadout.filter((id) => id === dt.id).length;
+  const atDupeLimit = dt.special && !isActive && sameCount >= MAX_SAME_SPECIAL;
+  const atLimit = atSpecialLimit || atDupeLimit;
+  card.className = 'dice-type-card' + (isActive ? ' active' : '') + (atLimit ? ' disabled' : '');
+  card.dataset.type = dt.id;
+
+  const preview = dieElement(previewFace(dt), ['locked'], dt.id);
+  applyDieColor(preview, dt.color, dt.special);
+  card.appendChild(preview);
+
+  const info = document.createElement('div');
+  info.className = 'card-info';
+  const left = MAX_SAME_SPECIAL - sameCount + (isActive ? 1 : 0);
+  const stockLabel = dt.special ? ` <span class="card-stock">в наличии: ${left}</span>` : '';
+  info.innerHTML = `<div class="card-name">${escapeHtml(dt.name)}${stockLabel}</div><div class="card-desc">${escapeHtml(dt.description)}</div>`;
+  card.appendChild(info);
+
+  card.appendChild(probBars(dt));
+
+  if (!atLimit) {
+    card.addEventListener('click', () => {
+      if (store.setLoadoutSlot(_pickerSlotIdx, dt.id)) modal.hidden = true;
+    });
+  }
+  return card;
+}
+
+function probBars(dt) {
+  const bars = document.createElement('div');
+  bars.className = 'prob-bars';
+  const total = dt.weights.reduce((s, w) => s + w, 0);
+  for (let f = 0; f < 6; f++) {
+    const pct = total > 0 ? Math.round((dt.weights[f] / total) * 100) : 0;
+    const bar = document.createElement('div');
+    bar.className = 'prob-bar';
+    bar.innerHTML = `<span class="bar-face">${f + 1}</span><div class="bar-track"><div class="bar-fill" style="width:${pct}%"></div></div><span class="bar-pct">${pct}%</span>`;
+    bars.appendChild(bar);
+  }
+  return bars;
+}
+
+function dieKindLabel(dt) {
+  if (dt.special) return 'Шулерская кость';
+  return dt.id === 'normal' ? 'Обычная кость' : 'Только внешний вид — катится честно';
+}
+
+function dieInfo(dt, face, ownerLabel) {
+  const box = document.createElement('div');
+  box.className = 'info-die';
+  const head = document.createElement('div');
+  head.className = 'info-head';
+  const preview = dieElement(face, ['locked'], dt.id);
+  applyDieColor(preview, dt.color, dt.special);
+  head.appendChild(preview);
+  const titles = document.createElement('div');
+  titles.innerHTML = '<div class="info-owner"></div><div class="info-name"></div><div class="info-kind"></div>';
+  titles.querySelector('.info-owner').textContent = ownerLabel;
+  titles.querySelector('.info-name').textContent = dt.name;
+  const kind = titles.querySelector('.info-kind');
+  kind.textContent = dieKindLabel(dt);
+  if (dt.special) kind.classList.add('cheat');
+  head.appendChild(titles);
+  box.appendChild(head);
+  const desc = document.createElement('p');
+  desc.className = 'info-desc';
+  desc.textContent = dt.description;
+  box.appendChild(desc);
+  box.appendChild(probBars(dt));
+  return box;
+}
+
+// Clicking a die you cannot select shows what it is — this is how players read each other's dice.
+function makeInspectable(el, state, store, typeId, ownerId, key) {
+  const dt = DICE_TYPES_MAP[typeId] || DICE_TYPES_MAP.normal;
+  el.classList.add('inspectable');
+  el.dataset.inspect = 'die';
+  el.addEventListener('click', () => {
+    const owner = ownerId === store.myPlayerId ? 'Ваша кость' : `Кость игрока ${nameOf(state, ownerId)}`;
+    toggleInfoCard(el, dieInfo(dt, Number(el.dataset.value), owner), key);
+  });
 }
 
 function renderGame(state, store) {
   renderTurnIndicator(state, store);
+  renderBadgeBar(state, store);
+  renderBadgeAction(state, store);
   renderScorePanel(state, store);
   renderDice(state, store);
   renderLockedTray(state, store);
@@ -286,7 +382,8 @@ function renderTurnIndicator(state, store) {
     textEl.textContent = `Ваш ход${modeTag}${hint}`;
   } else {
     const oppName = nameOf(state, state.currentPlayerId);
-    textEl.textContent = `Ход: ${oppName}${modeTag}`;
+    const hint = state.turn?.diceOnTable?.length ? '  (нажмите на кость — узнаете о ней)' : '';
+    textEl.textContent = `Ход: ${oppName}${modeTag}${hint}`;
   }
 }
 
@@ -339,6 +436,16 @@ function renderScorePanel(state, store) {
       </tr>
     </tbody>
   `;
+  const b1 = scoreBadge(state, store, p1);
+  const b2 = scoreBadge(state, store, p2);
+  if (b1 || b2) {
+    const row = document.createElement('tr');
+    row.className = 'badge-row';
+    row.innerHTML = '<td class="p1"></td><td class="mid label">бляха</td><td class="p2"></td>';
+    if (b1) row.children[0].appendChild(b1);
+    if (b2) row.children[2].appendChild(b2);
+    table.tBodies[0].prepend(row);
+  }
   panel.appendChild(table);
 }
 
@@ -407,6 +514,15 @@ function renderDice(state, store) {
   }
 
   const diceTypeIds = turn.diceTypeIds || [];
+  const targeting = isMine && store.badgeTargeting && !blocked && !store.rolling;
+  if (targeting) {
+    const me = state.players.find((p) => p.id === store.myPlayerId);
+    const hint = document.createElement('div');
+    hint.className = 'badge-target-hint';
+    hint.textContent = `Выберите кость — ${BADGES_MAP[me?.badge]?.name || 'бляха'}. Esc — отмена.`;
+    area.appendChild(hint);
+  }
+  const fx = store.badgeFx && store.badgeFx.until > Date.now() ? store.badgeFx : null;
 
   const areaRect = area.getBoundingClientRect();
   const isMobile = window.innerWidth <= 600;
@@ -430,6 +546,8 @@ function renderDice(state, store) {
     if (opponentSelected) classes.push('opponent-selected');
     if (!isMine || blocked || store.rolling) classes.push('disabled');
     if (store.rolling) classes.push('rolling');
+    if (targeting) classes.push('badge-target');
+    if (fx?.diceIndex === i) classes.push('badge-triggered');
     const typeId = diceTypeIds[i] || 'normal';
     const el = dieElement(displayV, classes, typeId);
     const diceType = DICE_TYPES_MAP[typeId];
@@ -448,8 +566,12 @@ function renderDice(state, store) {
       el.style.transform = `rotate(${s.rot}deg)`;
     }
 
-    if (isMine && !blocked && !store.rolling) {
+    if (targeting) {
+      el.addEventListener('click', () => store.onBadgeTarget?.(i));
+    } else if (isMine && !blocked && !store.rolling) {
       el.addEventListener('click', () => store.toggleSelection(i));
+    } else if (!isMine && !store.rolling) {
+      makeInspectable(el, state, store, typeId, state.currentPlayerId, `table:${i}:${typeId}:${realV}`);
     }
     area.appendChild(el);
   }
@@ -484,6 +606,7 @@ function renderLockedTray(state, store) {
       const el = dieElement(locked[i], ['locked'], typeId);
       const dt = DICE_TYPES_MAP[typeId];
       applyDieColor(el, dt?.color || DEFAULT_DICE_COLOR, dt?.special);
+      makeInspectable(el, state, store, typeId, state.currentPlayerId, `locked:${i}:${typeId}`);
       tray.appendChild(el);
     }
   }
@@ -500,6 +623,7 @@ function renderLockedTray(state, store) {
       const el = dieElement(v, ['locked', 'tentative'], typeId);
       const dt2 = DICE_TYPES_MAP[typeId];
       applyDieColor(el, dt2?.color || DEFAULT_DICE_COLOR, dt2?.special);
+      makeInspectable(el, state, store, typeId, state.currentPlayerId, `tentative:${j}:${typeId}`);
       tray.appendChild(el);
     }
   }
@@ -572,6 +696,7 @@ function renderFinished(state, store) {
       reveal.hidden = true;
     }
   }
+  renderBadgesReveal(state);
 }
 
 const MOOD_DESCRIPTIONS = {
@@ -586,6 +711,14 @@ function describeMood(mood) {
   return MOOD_DESCRIPTIONS[mood] || '';
 }
 
+// Score a held set as the server will: badge combos for the current player, ×2 if doubling is armed.
+function scoreForCurrent(state, values) {
+  const player = state.players.find((p) => p.id === state.currentPlayerId);
+  const r = player?.badge ? scoreWithBadge(values, player.badge) : scoreSelection(values);
+  if (!r.valid) return 0;
+  return state.turn?.doubleArmed ? r.score * 2 : r.score;
+}
+
 function computeSelectionScore(state, store) {
   if (!store.isMyTurn()) return 0;
   const dice = state.turn?.diceOnTable || [];
@@ -593,8 +726,7 @@ function computeSelectionScore(state, store) {
   if (sel.length === 0) return 0;
   const values = sel.map((i) => dice[i]).filter((v) => v !== undefined);
   if (values.length !== sel.length) return 0;
-  const r = scoreSelection(values);
-  return r.valid ? r.score : 0;
+  return scoreForCurrent(state, values);
 }
 
 function computeOpponentSelectionScore(state, store) {
@@ -604,8 +736,7 @@ function computeOpponentSelectionScore(state, store) {
   if (indices.length === 0) return 0;
   const values = indices.map((i) => dice[i]).filter((v) => v !== undefined);
   if (values.length !== indices.length) return 0;
-  const r = scoreSelection(values);
-  return r.valid ? r.score : 0;
+  return scoreForCurrent(state, values);
 }
 
 export function showOverlay(text, kind = 'info', durationMs = 1800) {
@@ -634,8 +765,16 @@ function formatHistory(h, state) {
         : `[${ts}] Игра началась (цель ${h.targetScore})`;
     }
     case 'rolled': return `[${ts}] ${who}: бросок [${h.dice.join(', ')}]`;
-    case 'held': return `[${ts}] ${who}: отложил [${h.dice.join(', ')}] = ${h.score} (раунд: ${h.roundScore})`;
-    case 'farkle': return `[${ts}] ${who}: ЗОНК! −${h.lostScore}`;
+    case 'held': return `[${ts}] ${who}: отложил [${h.dice.join(', ')}] = ${h.score}${h.doubled ? ' (×2)' : ''} (раунд: ${h.roundScore})`;
+    case 'farkle': return h.rescued
+      ? `[${ts}] ${who}: ЗОНК… но бляха спасла`
+      : `[${ts}] ${who}: ЗОНК! −${h.lostScore}`;
+    case 'badge_chosen':
+    case 'badge_activated':
+    case 'badge_blocked': {
+      const text = badgeHistoryText(h, (id) => nameOf(state, id));
+      return text ? `[${ts}] ${text}` : `[${ts}] ${h.type}`;
+    }
     case 'hot_dice': return `[${ts}] ${who}: HOT DICE! Все 6 заново`;
     case 'banked': return `[${ts}] ${who}: банк +${h.score} → ${h.total}`;
     case 'surrendered': return `[${ts}] ${who}: сдался`;

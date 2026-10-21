@@ -77,3 +77,51 @@ test('isFarkle re-export works', () => {
   assert.equal(typeof isFarkle, 'function');
   assert.equal(isFarkle([2, 3, 4]), true);
 });
+
+import { validateLoadoutArray, sanitizeLoadout, DICE_TYPES } from '../server/engine/dice-types.js';
+import { generateBotLoadout } from '../server/bot.js';
+
+const N = 'normal';
+
+test('loadout: cosmetic dice are unlimited in every mode', () => {
+  const six = Array(6).fill('artist_r');
+  assert.deepEqual(validateLoadoutArray(six, 'classic'), six);
+  assert.deepEqual(validateLoadoutArray(six, 'pocket'), six);
+});
+
+test('loadout: classic rejects any cheating die', () => {
+  assert.equal(validateLoadoutArray(['loaded', N, N, N, N, N], 'classic'), null);
+});
+
+test('loadout: pocket allows up to 3 different cheating dice, one of each', () => {
+  assert.ok(validateLoadoutArray(['loaded', 'painted', 'lucky', 'tooth', 'tooth', N], 'pocket'));
+  assert.equal(validateLoadoutArray(['loaded', 'loaded', N, N, N, N], 'pocket'), null);
+  assert.equal(validateLoadoutArray(['loaded', 'painted', 'lucky', 'odd', N, N], 'pocket'), null);
+});
+
+test('loadout: unknown ids and wrong length are rejected', () => {
+  assert.equal(validateLoadoutArray(['nope', N, N, N, N, N], 'pocket'), null);
+  assert.equal(validateLoadoutArray([N, N], 'pocket'), null);
+});
+
+test('sanitizeLoadout: strips what the mode forbids and keeps the rest in place', () => {
+  assert.deepEqual(
+    sanitizeLoadout(['loaded', 'tooth', 'painted', N, N, N], 'classic'),
+    [N, 'tooth', N, N, N, N],
+  );
+  assert.deepEqual(
+    sanitizeLoadout(['loaded', 'loaded', 'painted', 'lucky', 'odd', 'hugo'], 'pocket'),
+    ['loaded', N, 'painted', 'lucky', N, 'hugo'],
+  );
+});
+
+test('generateBotLoadout: always valid for its mode', () => {
+  for (const mode of ['classic', 'pocket']) {
+    for (let i = 0; i < 200; i++) {
+      const l = generateBotLoadout(mode);
+      assert.ok(validateLoadoutArray(l, mode), `${mode}: ${l}`);
+    }
+  }
+  const classic = generateBotLoadout('classic', () => 0.9);
+  assert.ok(classic.every((id) => !DICE_TYPES.find((d) => d.id === id).special));
+});

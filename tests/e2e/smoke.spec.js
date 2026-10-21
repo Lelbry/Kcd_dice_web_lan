@@ -1,9 +1,21 @@
 import { test, expect } from '@playwright/test';
 
-async function pickDie(page, slotIdx, name) {
+async function pickDie(page, slotIdx, typeId) {
   await page.locator('#loadout-slots .loadout-slot').nth(slotIdx).click();
-  await page.locator('#dice-catalog .dice-type-card', { hasText: name }).first().click();
+  await page.locator(`#dice-catalog .dice-type-card[data-type="${typeId}"]`).click();
   await expect(page.locator('#dice-picker-modal')).toBeHidden();
+}
+
+async function openLobbyWithBot(page, mode) {
+  await page.goto('/');
+  await page.evaluate(() => localStorage.clear());
+  await page.reload();
+  await page.locator('#create-lobby-btn').click();
+  await expect(page.locator('#lobby-code-text')).toHaveText(/^[A-Z2-9]{5}$/);
+  await page.locator('#lobby-players [data-action="add-bot"]').click();
+  await expect(page.locator('#lobby-players [data-action="remove-bot"]')).toBeVisible();
+  await page.locator(`input[name="game-mode"][value="${mode}"]`).check();
+  await expect(page.locator('#dice-loadout')).toBeVisible();
 }
 
 // Select every die worth points: all 1s and 5s plus any value showing three or more times.
@@ -28,20 +40,17 @@ test('pocket game with pie dice renders pie glyphs and plays to a win', async ({
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
 
-  await page.goto('/');
-  await page.locator('#create-lobby-btn').click();
-  await expect(page.locator('#lobby-code-text')).toHaveText(/^[A-Z2-9]{5}$/);
+  await openLobbyWithBot(page, 'pocket');
 
-  await page.locator('#lobby-players [data-action="add-bot"]').click();
-  await expect(page.locator('#lobby-players [data-action="remove-bot"]')).toBeVisible();
+  await pickDie(page, 0, 'pie');
+  // Each cheating die exists once: the second pie must be unavailable.
+  await page.locator('#loadout-slots .loadout-slot').nth(1).click();
+  await expect(page.locator('#dice-catalog .dice-type-card[data-type="pie"]')).toHaveClass(/disabled/);
+  await page.locator('#dice-catalog .dice-type-card[data-type="tooth"]').click();
+  await expect(page.locator('#dice-picker-modal')).toBeHidden();
 
-  await page.locator('input[name="game-mode"][value="pocket"]').check();
-  await expect(page.locator('#dice-loadout')).toBeVisible();
-
-  await pickDie(page, 0, 'Пирог в виде игральной кости');
-  await pickDie(page, 1, 'Пирог в виде игральной кости');
   const pieSlots = page.locator('#loadout-slots .die[data-type="pie"]');
-  await expect(pieSlots).toHaveCount(2);
+  await expect(pieSlots).toHaveCount(1);
   await expect(pieSlots.first().locator('svg').first()).toBeVisible();
   await expect(pieSlots.first().locator('.pip')).toHaveCount(0);
 
@@ -49,6 +58,7 @@ test('pocket game with pie dice renders pie glyphs and plays to a win', async ({
   await expect(page.locator('#game')).toBeVisible();
 
   let sawPieOnTable = false;
+  let inspectedOpponent = false;
   const finished = page.locator('#finished-modal');
   const roll = page.locator('#actions-panel [data-action="roll"]');
   const bank = page.locator('#actions-panel [data-action="score-and-bank"]');
@@ -60,6 +70,19 @@ test('pocket game with pie dice renders pie glyphs and plays to a win', async ({
       await expect(first.locator('.pip-glyph svg').first()).toBeAttached();
       expect(await first.locator('.pip').count()).toBe(0);
       sawPieOnTable = true;
+    }
+
+    const oppDie = page.locator('#dice-area .die.inspectable').first();
+    if (!inspectedOpponent && (await oppDie.count()) > 0) {
+      await oppDie.click({ force: true });
+      const card = page.locator('#info-card');
+      if (await card.isVisible()) {
+        await expect(card).toContainText('Кость игрока');
+        await expect(card.locator('.prob-bar')).toHaveCount(6);
+        await page.keyboard.press('Escape');
+        await expect(card).toBeHidden();
+        inspectedOpponent = true;
+      }
     }
 
     if ((await roll.isVisible()) && (await roll.isEnabled())) {
@@ -81,5 +104,95 @@ test('pocket game with pie dice renders pie glyphs and plays to a win', async ({
 
   await expect(finished).toBeVisible();
   expect(sawPieOnTable).toBe(true);
+  expect(inspectedOpponent).toBe(true);
   expect(errors).toEqual([]);
+});
+
+test('classic mode lets you restyle dice with cosmetic dice only', async ({ page }) => {
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+
+  await openLobbyWithBot(page, 'classic');
+  await expect(page.locator('#loadout-label')).toHaveText('Внешний вид костей:');
+  await expect(page.locator('#loadout-hint')).toContainText('все кости катятся честно');
+
+  await page.locator('#loadout-slots .loadout-slot').nth(0).click();
+  await expect(page.locator('#dice-catalog .dice-type-card[data-type="loaded"]')).toHaveCount(0);
+  await expect(page.locator('#dice-catalog .dice-type-card[data-type="artist_r"]')).toBeVisible();
+  await page.locator('#dice-catalog .dice-type-card[data-type="artist_r"]').click();
+  await pickDie(page, 1, 'artist_r');
+  await expect(page.locator('#loadout-slots .die[data-type="artist_r"]')).toHaveCount(2);
+
+  await page.locator('#start-btn').click();
+  await expect(page.locator('#game')).toBeVisible();
+
+  const myRoll = page.locator('#actions-panel [data-action="roll"]');
+  const myDice = page.locator('#dice-area .die[data-type="artist_r"]');
+  await expect.poll(async () => {
+    if (await myRoll.isVisible() && await myRoll.isEnabled()) await myRoll.click();
+    return myDice.count();
+  }, { timeout: 30_000 }).toBeGreaterThan(0);
+
+  const otherTypes = await page.locator('#dice-area .die').evaluateAll((els) =>
+    els.map((e) => e.dataset.type).filter((t) => t !== 'artist_r' && t !== 'normal'));
+  expect(otherTypes.every((t) => !['loaded', 'pie', 'painted'].includes(t))).toBe(true);
+  expect(errors).toEqual([]);
+});
+
+test('badge mode: pick a badge, use it on a die, read about it in help', async ({ page }) => {
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+
+  await openLobbyWithBot(page, 'badge');
+  await expect(page.locator('#badge-select')).toBeVisible();
+  await page.locator('#badge-slot').click();
+  await expect(page.locator('#badge-catalog .badge-card')).toHaveCount(8);
+  await page.locator('#badge-catalog .badge-card[data-badge="transmutation"]').click();
+  await expect(page.locator('#badge-slot')).toContainText('Бляха превращения');
+
+  await page.locator('#start-btn').click();
+  await expect(page.locator('#badge-bar')).toBeVisible();
+  await expect(page.locator('.badge-chip.mine')).toContainText('Бляха превращения');
+  await expect(page.locator('.badge-chip.theirs .badge-medallion')).toBeVisible();
+
+  const roll = page.locator('#actions-panel [data-action="roll"]');
+  const useBtn = page.locator('.badge-chip.mine .badge-activate');
+  await expect.poll(async () => {
+    if (await roll.isVisible() && await roll.isEnabled()) await roll.click();
+    return useBtn.isEnabled();
+  }, { timeout: 90_000, intervals: [500] }).toBe(true);
+
+  await page.keyboard.press('KeyB');
+  const targets = page.locator('#dice-area .die.badge-target');
+  await expect(targets.first()).toBeVisible();
+  await expect(page.locator('.badge-target-hint')).toBeVisible();
+  await targets.first().click();
+
+  await expect(page.locator('.badge-chip.mine .charge.full')).toHaveCount(0);
+  await expect(page.locator('#dice-area .die.badge-target')).toHaveCount(0);
+  await page.locator('#log-toggle').click();
+  await expect(page.locator('#log-panel')).toContainText('Бляха превращения — кость');
+
+  await page.keyboard.press('KeyT');
+  await page.locator('[data-help-tab="badges"]').click();
+  await expect(page.locator('#help-badges .help-badge')).toHaveCount(8);
+  expect(errors).toEqual([]);
+});
+
+test('phone layout: badges move into the score table and the action list', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openLobbyWithBot(page, 'badge');
+  await page.locator('#start-btn').click();
+  await expect(page.locator('#game')).toBeVisible();
+  await expect(page.locator('#badge-bar')).toBeHidden();
+  const row = page.locator('.score-table .badge-row');
+  await expect(row).toBeVisible();
+  await expect(row.locator('.score-badge')).toHaveCount(2);
+  await expect(page.locator('#actions-panel [data-action="badge"]')).toBeVisible();
+
+  await row.locator('.score-badge').last().click();
+  await expect(page.locator('#info-card')).toContainText('Бляха игрока');
+
+  const indicator = await page.locator('#turn-indicator').boundingBox();
+  expect(indicator.height).toBeLessThan(60);
 });

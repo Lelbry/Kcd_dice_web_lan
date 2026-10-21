@@ -1,5 +1,7 @@
+import { GAME_MODES } from './rules.js';
+
 export const MAX_SPECIAL_DICE = 3;
-export const MAX_SAME_SPECIAL = 2;
+export const MAX_SAME_SPECIAL = 1;
 
 export const DICE_TYPES = [
   {
@@ -14,7 +16,7 @@ export const DICE_TYPES = [
     id: 'antioch',
     name: 'Кость Святого Антиоха',
     description: 'На кости святого Антиоха всегда выпадает тройка. Не двойка, уж точно не четверка.',
-    weights: [0, 0, 1, 0, 0, 0],
+    weights: [3, 1, 6, 1, 1, 3],
     color: '#ffc800',
     special: true,
     faceGlyphs: { 3: 'cross' },
@@ -119,7 +121,7 @@ export const DICE_TYPES = [
     id: 'holy_trinity',
     name: 'Игральная кость Святой Троицы',
     description: 'Освященная игральная кость, которая славит Святую Троицу. Тройки особенно часто выпадают.',
-    weights: [4, 5, 10, 1, 1, 1],
+    weights: [4, 5, 7, 1, 1, 1],
     color: '#f8f0d8',
     special: true,
     faceGlyphs: { 3: 'trinity' },
@@ -128,7 +130,7 @@ export const DICE_TYPES = [
     id: 'lu',
     name: 'Игральная кость Лю',
     description: 'Первая из трех демонических костей.',
-    weights: [3, 3, 3, 3, 3, 8],
+    weights: [1, 1, 1, 1, 1, 2],
     color: '#8b0000',
     special: true,
     faceGlyphs: { 6: 'sigil' },
@@ -137,7 +139,7 @@ export const DICE_TYPES = [
     id: 'qi',
     name: 'Игральная кость Ци',
     description: 'Вторая из демонических костей. Теряться любит, но когда она вместе со своими сестрами, то ой как сильна.',
-    weights: [3, 3, 3, 3, 3, 8],
+    weights: [1, 1, 1, 1, 1, 2],
     color: '#5a0f3a',
     special: true,
     faceGlyphs: { 6: 'sigil' },
@@ -146,7 +148,7 @@ export const DICE_TYPES = [
     id: 'fer',
     name: 'Игральная кость Фер',
     description: 'Третья, и последняя, из демонических игральных костей.',
-    weights: [3, 3, 3, 3, 3, 8],
+    weights: [1, 1, 1, 1, 1, 2],
     color: '#1a0033',
     special: true,
     faceGlyphs: { 6: 'sigil' },
@@ -307,10 +309,10 @@ export const DICE_TYPES = [
   {
     id: 'kingdom_heaven',
     name: 'Игральная кость Царства небесного',
-    description: 'Игральная кость Царства небесного.',
-    weights: [1, 1, 1, 1, 1, 1],
+    description: 'Освящённая кость, что сулит путь в Царство небесное. Единица на ней выпадает чаще прочих граней.',
+    weights: [7, 2, 2, 2, 2, 4],
     color: '#dce8ff',
-    special: false,
+    special: true,
     faceGlyphs: { 1: 'sun' },
   },
   {
@@ -343,22 +345,44 @@ export const DICE_TYPES_MAP = Object.fromEntries(DICE_TYPES.map((d) => [d.id, d]
 
 export const DEFAULT_LOADOUT = Array(6).fill('normal');
 
-export function validateLoadoutArray(loadout) {
+export function modeAllowsSpecialDice(mode) {
+  return GAME_MODES[mode]?.allowSpecialDice !== false;
+}
+
+// Cosmetic dice (special: false) are unlimited; cheating dice are capped per mode.
+export function validateLoadoutArray(loadout, mode = 'pocket') {
   if (!Array.isArray(loadout) || loadout.length !== 6) return null;
-  const specialCount = loadout.filter((id) => {
-    const dt = DICE_TYPES_MAP[id];
-    return dt && dt.special;
-  }).length;
-  if (specialCount > MAX_SPECIAL_DICE) return null;
+  const allowSpecial = modeAllowsSpecialDice(mode);
   const counts = {};
+  let specials = 0;
   for (const id of loadout) {
-    if (!DICE_TYPES_MAP[id]) return null;
-    if (id !== 'normal') {
-      counts[id] = (counts[id] || 0) + 1;
-      if (counts[id] > MAX_SAME_SPECIAL) return null;
-    }
+    const dt = DICE_TYPES_MAP[id];
+    if (!dt) return null;
+    if (!dt.special) continue;
+    if (!allowSpecial) return null;
+    specials++;
+    counts[id] = (counts[id] || 0) + 1;
+    if (counts[id] > MAX_SAME_SPECIAL) return null;
   }
+  if (specials > MAX_SPECIAL_DICE) return null;
   return loadout;
+}
+
+// Replace every die the mode does not allow with a normal one, keeping the rest in place.
+export function sanitizeLoadout(loadout, mode) {
+  if (!Array.isArray(loadout) || loadout.length !== 6) return [...DEFAULT_LOADOUT];
+  const allowSpecial = modeAllowsSpecialDice(mode);
+  const counts = {};
+  let specials = 0;
+  return loadout.map((id) => {
+    const dt = DICE_TYPES_MAP[id];
+    if (!dt) return 'normal';
+    if (!dt.special) return id;
+    if (!allowSpecial || specials >= MAX_SPECIAL_DICE || (counts[id] || 0) >= MAX_SAME_SPECIAL) return 'normal';
+    specials++;
+    counts[id] = (counts[id] || 0) + 1;
+    return id;
+  });
 }
 
 export function rollWeighted(weights) {

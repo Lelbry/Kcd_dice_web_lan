@@ -4,8 +4,8 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Кости — KCD2</title>
-  <link rel="stylesheet" href="/styles/main.css?v=2.9.0" />
-  <link rel="stylesheet" href="/styles/dice.css?v=2.9.0" />
+  <link rel="stylesheet" href="/styles/main.css?v=2.10.0" />
+  <link rel="stylesheet" href="/styles/dice.css?v=2.10.0" />
 </head>
 <body>
   <div id="app">
@@ -68,12 +68,21 @@
               <input type="radio" name="game-mode" value="pocket" />
               <span class="mode-name">Карманные кости</span>
             </label>
+            <label class="mode-option">
+              <input type="radio" name="game-mode" value="badge" />
+              <span class="mode-name">Игра с бляхой</span>
+            </label>
           </div>
         </div>
         <div class="dice-loadout" id="dice-loadout" hidden>
-          <div class="loadout-label">Мои кости:</div>
+          <div class="loadout-label" id="loadout-label">Мои кости:</div>
           <div class="loadout-slots" id="loadout-slots"></div>
-          <div class="loadout-hint">Можно выбрать до 3 специальных костей</div>
+          <div class="loadout-hint" id="loadout-hint"></div>
+        </div>
+        <div class="badge-select" id="badge-select" hidden>
+          <div class="loadout-label">Моя бляха:</div>
+          <button type="button" class="badge-slot" id="badge-slot" title="Выбрать бляху"></button>
+          <div class="loadout-hint">Бляха — козырь в рукаве. Каждый игрок берёт одну: активную применяете кнопкой «Применить» (B) в нужный момент, пассивная действует всю партию.</div>
         </div>
         <div class="lobby-players" id="lobby-players"></div>
         <div class="form-row">
@@ -90,6 +99,7 @@
         <span class="turn-label" id="turn-indicator-text">—</span>
       </div>
       <div class="game-table">
+        <div class="badge-bar" id="badge-bar" hidden></div>
         <div class="locked-tray empty" id="locked-tray"></div>
         <div class="dice-area" id="dice-area"></div>
         <div class="overlay" id="overlay" hidden></div>
@@ -109,6 +119,10 @@
           <button class="action-btn" data-action="score-and-bank" hidden>
             <span class="label">Записать и закончить ход</span>
             <span class="hotkey">Q</span>
+          </button>
+          <button class="action-btn badge-action" data-action="badge" hidden>
+            <span class="label"></span>
+            <span class="hotkey">B</span>
           </button>
           <button class="action-btn ghost" data-action="help">
             <span class="label">Помощь</span>
@@ -133,6 +147,10 @@
           <div class="reveal-name" id="bot-reveal-name"></div>
           <div class="reveal-desc" id="bot-reveal-desc"></div>
         </div>
+        <div id="badges-reveal" class="badges-reveal" hidden>
+          <div class="reveal-label">Бляхи партии:</div>
+          <div class="badges-reveal-list"></div>
+        </div>
         <button id="new-game-btn" class="primary">Новая игра</button>
       </div>
     </div>
@@ -140,6 +158,11 @@
     <div class="modal" id="help-modal" hidden>
       <div class="modal-inner help-inner">
         <h2>Правила игры в кости</h2>
+        <div class="help-tabs" role="tablist">
+          <button type="button" class="help-tab active" role="tab" data-help-tab="rules">Правила</button>
+          <button type="button" class="help-tab" role="tab" data-help-tab="badges">Бляхи</button>
+        </div>
+        <div class="help-pane" data-help-pane="rules">
 
         <h3 class="help-section-title">Как играть</h3>
         <p class="help-text">Игроки по очереди бросают 6 костей. После броска нужно выбрать зачётные кости (приносящие очки) и решить: <strong>записать очки и продолжить бросать</strong> оставшиеся кости, или <strong>закончить ход</strong> и сохранить набранное. Но будьте осторожны — если после броска ни одна кость не принесла очков, это <em>Зонк</em>, и все очки за ход сгорают!</p>
@@ -167,16 +190,21 @@
         <p class="help-text"><strong>Hot Dice</strong> — все 6 костей оказались зачётными. Все кости автоматически возвращаются в игру и бросаются заново, а набранные очки сохраняются.</p>
 
         <h3 class="help-section-title">Режимы игры</h3>
-        <p class="help-text"><strong>Классический</strong> — стандартные правила с обычными костями. Цели: 2000 / 3000 / 4000 / 7000 / 10000.</p>
-        <p class="help-text"><strong>Карманные кости</strong> — можно выбрать до 3 специальных костей с изменёнными вероятностями выпадения граней. Например, «Заряженная кость» чаще выбрасывает единицы, а «Нечётная» — нечётные числа. Цели: 4000 / 6000 / 8000 / 10000 / 15000.</p>
+        <p class="help-text"><strong>Классический</strong> — стандартные правила, все кости честные. Внешний вид можно сменить: кости-пироги, зубы, кости художника и другие играют как обычные. Цели: 2000 / 3000 / 4000 / 7000 / 10000.</p>
+        <p class="help-text"><strong>Карманные кости</strong> — до 3 шулерских костей с изменёнными вероятностями граней, каждая в одном экземпляре. Например, «Заряженная кость» чаще выбрасывает единицы, а «Нечётная» — нечётные числа. Цели: 4000 / 6000 / 8000 / 10000 / 15000.</p>
+        <p class="help-text"><strong>Игра с бляхой</strong> — шулерские кости плюс одна бляха у каждого игрока. Активные бляхи (Удвоения, Воскрешения, Превращения, Обмена) применяются кнопкой «Применить» или клавишей B и тратят заряд. Пассивные (Форы, Плотника, Палача, Защиты) действуют всю партию: фора даёт очки на старте, плотник и палач добавляют комбинации «Разрез» (3+5 = 150) и «Виселица» (4+5+6 = 500), защита гасит первую бляху соперника. Цели как в «Карманных костях».</p>
+        <p class="help-text"><strong>Кости соперника</strong> — пока ходит соперник, нажмите на любую его кость на столе или в отложенных, чтобы прочитать её название, описание и шансы граней. Соперник так же может посмотреть ваши кости.</p>
 
         <h3 class="help-section-title">Управление</h3>
         <div class="combos">
           <div><span class="combo-name">ПРОБЕЛ</span><span>Бросить кости</span></div>
           <div><span class="combo-name">F</span><span>Записать и продолжить</span></div>
           <div><span class="combo-name">Q</span><span>Записать и закончить ход</span></div>
+          <div><span class="combo-name">B</span><span>Применить бляху (в «Игре с бляхой»)</span></div>
           <div><span class="combo-name">T</span><span>Открыть / закрыть помощь</span></div>
         </div>
+        </div>
+        <div class="help-pane" data-help-pane="badges" id="help-badges" hidden></div>
 
         <button data-close-modal class="primary">Закрыть</button>
       </div>
@@ -184,8 +212,16 @@
 
     <div class="modal" id="dice-picker-modal" hidden>
       <div class="modal-inner picker-inner">
-        <h2>Выбрать кость</h2>
+        <h2 id="dice-picker-title">Выбрать кость</h2>
         <div class="dice-catalog" id="dice-catalog"></div>
+        <button data-close-modal class="primary">Закрыть</button>
+      </div>
+    </div>
+
+    <div class="modal" id="badge-picker-modal" hidden>
+      <div class="modal-inner picker-inner">
+        <h2>Выбрать бляху</h2>
+        <div class="dice-catalog" id="badge-catalog"></div>
         <button data-close-modal class="primary">Закрыть</button>
       </div>
     </div>
@@ -193,6 +229,6 @@
     <div id="reconnect-banner" hidden>Соединение прервано, переподключение…</div>
   </div>
 
-  <script type="module" src="/js/main.js?v=2.9.0"></script>
+  <script type="module" src="/js/main.js?v=2.10.0"></script>
 </body>
 </html>

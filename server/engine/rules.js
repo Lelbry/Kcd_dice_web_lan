@@ -18,6 +18,16 @@ export const GAME_MODES = {
     defaultTarget: 4000,
     allowSpecialDice: true,
   },
+  badge: {
+    id: 'badge',
+    name: 'Игра с бляхой',
+    // Badges speed scoring up, so this mode plays to higher targets (~15 turns each at 9000).
+    targets: [6000, 9000, 12000, 15000, 18000],
+    canonTargets: [6000, 9000, 12000],
+    defaultTarget: 9000,
+    allowSpecialDice: true,
+    badges: true,
+  },
 };
 
 export const GAME_MODE_IDS = Object.keys(GAME_MODES);

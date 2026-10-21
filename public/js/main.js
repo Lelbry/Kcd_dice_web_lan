@@ -1,6 +1,9 @@
 import { Net } from './net.js';
 import { Store } from './state.js';
 import { render, showOverlay } from './ui.js';
+import { openBadgePicker, activationState, renderBadgeHelp } from './badges.js';
+import { BADGES_MAP } from './engine/badges.js';
+import { hideInfoCard } from './infocard.js';
 import { MusicPlayer } from './music.js';
 
 function getClientId() {
@@ -83,7 +86,8 @@ const net = new Net(wsUrl, {
     history.replaceState(null, '', url.toString());
     showLobbyWaiting(payload.code);
     net.send({ type: 'hello', payload: { name, clientId } });
-    net.send({ type: 'set_loadout', payload: { loadout: store.getLoadout() } });
+    sendLoadout();
+    net.send({ type: 'set_badge', payload: { badgeId: store.myBadge } });
   },
 });
 
@@ -188,6 +192,18 @@ function handleEvent(ev) {
   if (ev.type === 'banked') {
     return;
   }
+  if (ev.type === 'badge_activated') {
+    const badge = BADGES_MAP[ev.badgeId];
+    showOverlay(badge?.flash || 'Бляха!', 'badge', 1300);
+    store.flashBadge(ev.playerId, ev.diceIndex);
+    if (ev.badgeId === 'resurrection') triggerRollAnimation();
+    return;
+  }
+  if (ev.type === 'badge_blocked') {
+    showOverlay('Бляха защиты!', 'badge-blocked', 1500);
+    store.flashBadge(ev.byPlayerId);
+    return;
+  }
   if (ev.type === 'reconnected') {
     showOverlay('Переподключено', 'info', 1000);
   }
@@ -195,15 +211,51 @@ function handleEvent(ev) {
 
 store.subscribe(() => render(store, lobbyCode));
 
+function sendLoadout() {
+  const mode = store._selectedMode;
+  net.send({ type: 'set_loadout', payload: { loadout: store.getLoadout(mode), mode } });
+}
+
 let _prevLoadoutKey = '';
 store.subscribe(() => {
-  const key = store.myLoadout.join(',');
+  const key = `${store._selectedMode}:${store.getLoadout().join(',')}`;
   if (key === _prevLoadoutKey) return;
   _prevLoadoutKey = key;
-  if (lobbyJoined) {
-    net.send({ type: 'set_loadout', payload: { loadout: store.getLoadout() } });
-  }
+  if (lobbyJoined) sendLoadout();
 });
+
+let _prevInfoTurn = null;
+store.subscribe(() => {
+  const key = `${store.state?.phase}:${store.state?.currentPlayerId}`;
+  if (key !== _prevInfoTurn) hideInfoCard();
+  _prevInfoTurn = key;
+});
+
+let _prevBadge = null;
+store.subscribe(() => {
+  if (store.myBadge === _prevBadge) return;
+  _prevBadge = store.myBadge;
+  if (lobbyJoined) net.send({ type: 'set_badge', payload: { badgeId: store.myBadge } });
+});
+
+function useBadge() {
+  if (store.badgeTargeting) {
+    store.setBadgeTargeting(false);
+    return;
+  }
+  const act = store.state && activationState(store.state, store);
+  if (!act) return;
+  if (act.needsDie) {
+    store.setBadgeTargeting(true);
+    return;
+  }
+  net.send({ type: 'activate_badge', payload: {} });
+}
+
+store.onBadgeTarget = (diceIndex) => {
+  store.setBadgeTargeting(false);
+  net.send({ type: 'activate_badge', payload: { diceIndex } });
+};
 
 let _prevSelKey = '';
 let _prevTurnPlayer = null;
@@ -328,11 +380,23 @@ function bindUI() {
       if (confirm('Вы уверены, что хотите сдаться?')) {
         net.send({ type: 'surrender' });
       }
+    } else if (a === 'badge') {
+      useBadge();
     } else if (a === 'help') {
       toggleHelp(true);
     } else if (a === 'new-game') {
       net.send({ type: 'new_game' });
     }
+  });
+
+  document.getElementById('badge-slot').addEventListener('click', () => openBadgePicker(store));
+  renderBadgeHelp(document.getElementById('help-badges'));
+  document.querySelector('.help-tabs').addEventListener('click', (e) => {
+    const tab = e.target.closest('[data-help-tab]');
+    if (tab) showHelpTab(tab.dataset.helpTab);
+  });
+  document.getElementById('badge-bar').addEventListener('click', (e) => {
+    if (e.target.closest('[data-action="badge"]')) useBadge();
   });
 
   document.getElementById('new-game-btn').addEventListener('click', () => {
@@ -344,7 +408,12 @@ function bindUI() {
       toggleHelp(false);
       const pickerModal = document.getElementById('dice-picker-modal');
       if (pickerModal) pickerModal.hidden = true;
+      document.getElementById('badge-picker-modal').hidden = true;
     });
+  });
+  const badgeModal = document.getElementById('badge-picker-modal');
+  badgeModal.addEventListener('click', (e) => {
+    if (e.target === badgeModal) badgeModal.hidden = true;
   });
 
   const logToggle = document.getElementById('log-toggle');
@@ -451,14 +520,23 @@ function bindUI() {
       if (sel.length && store.isMyTurn() && !store.state.turn.awaitingFirstRoll) {
         net.send({ type: 'score_and_bank', payload: { selection: sel } });
       }
+    } else if (e.code === 'KeyB') {
+      useBadge();
     } else if (e.code === 'KeyT') {
       toggleHelp();
     } else if (e.code === 'Escape') {
       toggleHelp(false);
       const pm = document.getElementById('dice-picker-modal');
       if (pm) pm.hidden = true;
+      document.getElementById('badge-picker-modal').hidden = true;
+      if (store.badgeTargeting) store.setBadgeTargeting(false);
     }
   });
+}
+
+function showHelpTab(name) {
+  document.querySelectorAll('[data-help-tab]').forEach((t) => t.classList.toggle('active', t.dataset.helpTab === name));
+  document.querySelectorAll('[data-help-pane]').forEach((p) => { p.hidden = p.dataset.helpPane !== name; });
 }
 
 function toggleHelp(force) {

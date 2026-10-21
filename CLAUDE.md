@@ -17,7 +17,7 @@ Production: `https://kcddice.ru` (owner — пользователь, депло
 - Node 20+, `type: module`, Express + `ws`, zero bundler
 - Клиент — vanilla HTML/CSS/ES-модули, без фреймворков
 - `npm start` — поднимает сервер на `0.0.0.0:8080` (переопределить: `npm start -- --port 3000`)
-- `npm test` — `node:test` по `tests/{scoring,validate,bot,color,weights,balance}.test.js`
+- `npm test` — `node:test` по `tests/{scoring,validate,bot,color,weights,balance,badges}.test.js`
 - `npm run test:e2e` — Playwright UI smoke (`tests/e2e/`), сам поднимает сервер на :8091
 - Дополнительные ручные скрипты: `tests/ws-smoke.mjs`, `tests/bot-smoke.mjs`, `tests/rng-audit.mjs`, `scripts/simulate.js`
 - Dev-сервер в этой сессии запускать через `preview_start { name: "kcd2-dice" }`, если
@@ -54,6 +54,7 @@ Production: `https://kcddice.ru` (owner — пользователь, депло
 | `rules.js` | полное зеркало | меняем ОБА файла синхронно |
 | `scoring.js` | полное зеркало | меняем ОБА файла синхронно |
 | `dice-types.js` | полное зеркало | меняем ОБА файла синхронно |
+| `badges.js` | полное зеркало | меняем ОБА файла синхронно |
 | `validate.js` | **частичное** | клиент экспортирует только `canHold` + `isFarkle` (для preview); `canBank`/`checkWin` живут только на сервере |
 
 Если забыть обновить клиентскую копию — preview и анти-читовая валидация
@@ -64,19 +65,35 @@ Production: `https://kcddice.ru` (owner — пользователь, депло
 
 ## Кости и loadout
 
-- Правила — `rules.js` (комбинации, цели, режимы). Два режима:
-  - `classic` — все кости обычные, цели 2000/3000/4000 (+ ext 7000/10000)
-  - `pocket` — у каждого игрока свой loadout, цели 4000/6000/8000 (+ ext 10000/15000)
-- Loadout: массив из 6 id, где максимум **3** спец-кости (`MAX_SPECIAL_DICE`)
-  и максимум **2** одинаковых специальных (`MAX_SAME_SPECIAL`).
-- Каталог костей — `dice-types.js`. Реализованные перечислены в
-  `docs/DICE_REFERENCE.md`; там же roadmap из 19 + 10 костей на будущее.
+- Правила — `rules.js` (комбинации, цели, режимы). Три режима:
+  - `classic` — все кости честные, но можно взять косметические (внешний вид),
+    цели 2000/3000/4000 (+ ext 7000/10000)
+  - `pocket` — до 3 шулерских костей, цели 4000/6000/8000 (+ ext 10000/15000)
+  - `badge` («Игра с бляхой») — как pocket + одна бляха у каждого,
+    цели 6000/9000/12000 (+ ext 15000/18000)
+- Loadout: массив из 6 id. Шулерских (`special: true`) максимум **3**
+  (`MAX_SPECIAL_DICE`), каждая — максимум **1** штука (`MAX_SAME_SPECIAL`).
+  Косметические (`special: false`) — без ограничений. Проверка —
+  `validateLoadoutArray(loadout, mode)`, на старте — `sanitizeLoadout`.
+- У клиента свой loadout на каждый режим: `localStorage['kcd2_loadout_<mode>']`.
+- Каталог костей — `dice-types.js`, все 40 костей KCD2 перечислены в
+  `docs/DICE_REFERENCE.md` (веса сверены с inara.cz).
 - **Добавление новой кости** — всегда правим ОБА `dice-types.js` одной
   записью `{id, name, description, weights:[w1..w6], color:'#…', special:bool}`.
   Цвет должен быть насыщенным и уникальным. См. раздел «Как добавить новую
   кость» в `docs/DICE_REFERENCE.md`.
 - Веса — относительные целые. `rollWeighted` суммирует и бросает `Math.random()`.
-  У `antioch` веса `[0,0,1,0,0,0]` → всегда 3.
+
+## Бляхи
+
+- Каталог и правила — `server/engine/badges.js` (полное зеркало в
+  `public/js/engine/badges.js`), UI — `public/js/badges.js`.
+- v1: 8 блях без редкостей (4 активные, 4 пассивные). Полный список KCD2,
+  редкости и план v2 — `docs/BADGE_REFERENCE.md`.
+- Протокол: `set_badge {badgeId}`, `activate_badge {diceIndex?}`; события
+  `badge_activated` / `badge_blocked`.
+- `activationBlocker` — единая проверка «можно ли применить» для сервера,
+  клиента и бота. Баланс — `node scripts/badge-balance.js`.
 
 ## Что нельзя пушить в публичный репо
 
@@ -101,7 +118,7 @@ Production: `https://kcddice.ru` (owner — пользователь, депло
 
 При изменении любого CSS/JS в `public/` менять `?v=X.Y.Z` в трёх местах
 `public/index.html` одновременно (`main.css`, `dice.css`, `main.js`). Иначе у
-пользователей будет старый кэш. Сейчас стоит `?v=2.9.0`. Для крупных релизов
+пользователей будет старый кэш. Сейчас стоит `?v=2.10.0`. Для крупных релизов
 также бампать `version` в `package.json` и шильд в `README.md`.
 
 Деплой на `kcddice.ru`: `cd /opt/kcd-dice && git pull && sudo systemctl
@@ -118,6 +135,7 @@ restart kcd-dice` (делает пользователь руками на VPS, 
 - `server/room.js` — вся игровая FSM и broadcast
 - `server/bot.js` — AI, настроения, `BotDriver`, `generateBotLoadout`
 - `public/js/ui.js` — рендер (lobby, игра, loadout, picker, finished-modal)
+- `public/js/badges.js` — UI блях; `public/js/infocard.js` — карточка «что это за кость»
 - `public/js/color.js` — конвертация hex→HSL, градиент для грани кости
 - `public/index.html` — вся DOM-разметка в одном файле
 - `tests/scoring.test.js`, `tests/validate.test.js`, `tests/bot.test.js`,

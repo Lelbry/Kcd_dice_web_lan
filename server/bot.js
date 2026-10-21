@@ -1,7 +1,8 @@
 import { randomInt } from 'node:crypto';
 import { scoreSelection } from './engine/scoring.js';
+import { scoreWithBadge, activationBlocker, BADGES_MAP } from './engine/badges.js';
 import { ClientMsg } from './protocol.js';
-import { DICE_TYPES, MAX_SPECIAL_DICE, MAX_SAME_SPECIAL } from './engine/dice-types.js';
+import { DICE_TYPES, MAX_SPECIAL_DICE, modeAllowsSpecialDice } from './engine/dice-types.js';
 
 export const MOODS = {
   cautious: {
@@ -108,7 +109,7 @@ export function moodDescription(mood) {
  * Перебираем подмножества от больших к малым, ищем максимальную валидную выборку.
  * Для 6 костей это 2^6=64 — допустимо.
  */
-export function chooseGreedySelection(dice) {
+export function chooseGreedySelection(dice, score = scoreSelection) {
   const n = dice.length;
   let bestSelection = null;
   let bestScore = -1;
@@ -123,7 +124,7 @@ export function chooseGreedySelection(dice) {
         vals.push(dice[i]);
       }
     }
-    const r = scoreSelection(vals);
+    const r = score(vals);
     if (!r.valid) continue;
     // Prefer larger selection (more dice used), break ties by score.
     if (sel.length > bestSize || (sel.length === bestSize && r.score > bestScore)) {
@@ -169,14 +170,15 @@ export function decideBotAction(snapshot, bot, rng = Math.random) {
     return { type: ClientMsg.SCORE_AND_BANK, payload: { selection: chooseGreedySelection(turn.diceOnTable) ?? [] } };
   }
 
-  const selection = chooseGreedySelection(turn.diceOnTable);
+  const score = badgeScorer(bot.gameBadge);
+  const selection = chooseGreedySelection(turn.diceOnTable, score);
   if (!selection || selection.length === 0) {
     // Зонк — но FSM комнаты не должен сюда нас впустить.
     return null;
   }
 
   const heldValues = selection.map((i) => turn.diceOnTable[i]);
-  const heldScore = scoreSelection(heldValues).score;
+  const heldScore = score(heldValues).score * (turn.doubleArmed ? 2 : 1);
   const projectedRound = (turn.roundScore || 0) + heldScore;
 
   // Forced bank: победа в кармане.
@@ -203,6 +205,45 @@ export function decideBotAction(snapshot, bot, rng = Math.random) {
   return bank
     ? { type: ClientMsg.SCORE_AND_BANK, payload: { selection } }
     : { type: ClientMsg.SCORE_AND_ROLL, payload: { selection } };
+}
+
+function badgeScorer(badgeId) {
+  return BADGES_MAP[badgeId]?.combos ? (vals) => scoreWithBadge(vals, badgeId) : scoreSelection;
+}
+
+const BOT_DOUBLING_MIN_HOLD = 300;
+const BOT_RESCUE_MIN_ROUND = 250;
+
+/**
+ * Решение бота про активную бляху. Возвращает сообщение activate_badge или null.
+ * Пассивные бляхи срабатывают сами, их бот не трогает.
+ */
+export function decideBotBadge(snapshot, bot) {
+  const badge = BADGES_MAP[bot.gameBadge];
+  if (!badge || badge.kind !== 'active' || !(bot.badgeCharges > 0)) return null;
+  const turn = snapshot.turn;
+  const ctx = { charges: bot.badgeCharges, turn, isMyTurn: snapshot.currentPlayerId === bot.id };
+  const activate = (diceIndex) => (
+    activationBlocker(badge.id, { ...ctx, diceIndex }) ? null : { type: ClientMsg.ACTIVATE_BADGE, payload: diceIndex === undefined ? {} : { diceIndex } }
+  );
+
+  if (badge.id === 'resurrection') {
+    if (!turn.isFarkle) return null;
+    return turn.roundScore >= BOT_RESCUE_MIN_ROUND || turn.diceOnTable.length >= 3 ? activate() : null;
+  }
+  if (turn.isFarkle || turn.awaitingFirstRoll) return null;
+
+  const score = badgeScorer(bot.gameBadge);
+  const selection = chooseGreedySelection(turn.diceOnTable, score) || [];
+  if (badge.id === 'doubling') {
+    const held = score(selection.map((i) => turn.diceOnTable[i])).score;
+    return held >= BOT_DOUBLING_MIN_HOLD ? activate() : null;
+  }
+  // transmutation / exchange: fix the single die that keeps the bot from hot dice.
+  const junk = turn.diceOnTable.map((_, i) => i).filter((i) => !selection.includes(i));
+  const minTable = badge.id === 'transmutation' ? 2 : 3;
+  if (junk.length === 1 && turn.diceOnTable.length >= minTable) return activate(junk[0]);
+  return null;
 }
 
 /**
@@ -232,27 +273,42 @@ export class BotDriver {
     if (this.room.phase !== 'playing') return;
     const cur = this.room._currentPlayer?.();
     if (!cur?.isBot) return;
+    if (this.room.turn?.isFarkle) {
+      if (decideBotBadge(this.room.toSnapshot(), cur)) this._schedule(cur, this.firstRollDelayMin);
+      return;
+    }
     if (this.room.farkleTimer) return;
-    if (this.room.turn?.isFarkle) return;
 
     const isFirstRoll = !!this.room.turn?.awaitingFirstRoll;
     const lo = isFirstRoll ? this.firstRollDelayMin : this.postRollDelayMin;
     const hi = isFirstRoll ? this.firstRollDelayMax : this.postRollDelayMax;
     const range = Math.max(0, hi - lo);
-    const delay = lo + Math.floor(Math.random() * (range + 1));
+    this._schedule(cur, lo + Math.floor(Math.random() * (range + 1)));
+  }
+
+  _schedule(bot, delay) {
     this.timer = setTimeout(() => {
       this.timer = null;
-      this._act(cur);
+      this._act(bot);
     }, delay);
   }
 
   _act(bot) {
     if (this.room.phase !== 'playing') return;
     const cur = this.room._currentPlayer?.();
-    if (!cur || cur.id !== bot.id) return;
-    if (this.room.farkleTimer || this.room.turn?.isFarkle) return;
+    if (!cur || cur.id !== bot.id) {
+      // The turn moved on while this action waited (e.g. a farkle passed it): drive whoever is up now.
+      this.tick();
+      return;
+    }
 
     try {
+      const badgeMsg = decideBotBadge(this.room.toSnapshot(), bot);
+      if (badgeMsg) {
+        this.room.handleMessage(bot, badgeMsg);
+        return;
+      }
+      if (this.room.farkleTimer || this.room.turn?.isFarkle) return;
       if (this.room.turn.awaitingFirstRoll) {
         this.room.handleMessage(bot, { type: ClientMsg.ROLL });
         return;
@@ -277,26 +333,25 @@ export class BotDriver {
   }
 }
 
-/** Сгенерировать случайный лоадаут для бота в pocket-режиме. */
-export function generateBotLoadout(rng = Math.random) {
-  const specials = DICE_TYPES.filter((d) => d.special);
-  const numSpecial = 1 + Math.floor(rng() * MAX_SPECIAL_DICE);
+/** Случайный набор костей бота под режим: в classic — только внешний вид, иначе — до лимита шулерских. */
+export function generateBotLoadout(mode = 'pocket', rng = Math.random) {
   const loadout = Array(6).fill('normal');
-  const counts = {};
+  if (!modeAllowsSpecialDice(mode)) {
+    if (rng() < 0.5) return loadout;
+    const cosmetics = DICE_TYPES.filter((d) => !d.special && d.id !== 'normal');
+    const look = cosmetics[Math.floor(rng() * cosmetics.length)].id;
+    return loadout.map(() => look);
+  }
+  const pool = DICE_TYPES.filter((d) => d.special);
+  const numSpecial = 1 + Math.floor(rng() * MAX_SPECIAL_DICE);
   const slots = [0, 1, 2, 3, 4, 5];
   for (let i = slots.length - 1; i > 0; i--) {
     const j = Math.floor(rng() * (i + 1));
     [slots[i], slots[j]] = [slots[j], slots[i]];
   }
-  let placed = 0;
-  for (const slot of slots) {
-    if (placed >= numSpecial) break;
-    const available = specials.filter((d) => (counts[d.id] || 0) < MAX_SAME_SPECIAL);
-    if (available.length === 0) break;
-    const pick = available[Math.floor(rng() * available.length)];
-    loadout[slot] = pick.id;
-    counts[pick.id] = (counts[pick.id] || 0) + 1;
-    placed++;
+  for (let k = 0; k < numSpecial && pool.length > 0; k++) {
+    const [pick] = pool.splice(Math.floor(rng() * pool.length), 1);
+    loadout[slots[k]] = pick.id;
   }
   return loadout;
 }

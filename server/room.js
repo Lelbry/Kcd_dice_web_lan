@@ -9,12 +9,17 @@ import {
   validateSelection,
   validateSetProfile,
   validateLoadout,
+  validateSetBadge,
+  validateActivateBadge,
   DEFAULT_DICE_COLOR,
 } from './protocol.js';
 import { rollBotPersona, moodLabel, generateBotLoadout } from './bot.js';
-import { DICE_TYPES_MAP, DEFAULT_LOADOUT, rollWeighted } from './engine/dice-types.js';
+import { DICE_TYPES_MAP, DEFAULT_LOADOUT, rollWeighted, sanitizeLoadout } from './engine/dice-types.js';
+import { BADGES, BADGES_MAP, DEFAULT_BADGE, canHoldWithBadge, activationBlocker } from './engine/badges.js';
 
 const FARKLE_PASS_DELAY_MS = 3500;
+// A player holding a resurrection charge gets extra time to decide whether to spend it.
+const FARKLE_RESCUE_DELAY_MS = 6000;
 const RECONNECT_GRACE_MS = 60_000;
 const HISTORY_LIMIT = 50;
 const MAX_PLAYERS = 2;
@@ -42,7 +47,9 @@ function rollDiceWeighted(typeIds) {
 }
 
 export class GameRoom {
-  constructor() {
+  constructor({ farklePassDelayMs = FARKLE_PASS_DELAY_MS, farkleRescueDelayMs = FARKLE_RESCUE_DELAY_MS } = {}) {
+    this.farklePassDelayMs = farklePassDelayMs;
+    this.farkleRescueDelayMs = farkleRescueDelayMs;
     this.phase = 'lobby';
     this.gameMode = DEFAULT_GAME_MODE;
     this.targetScore = DEFAULT_TARGET;
@@ -71,7 +78,12 @@ export class GameRoom {
       roundScore: 0,
       isFarkle: false,
       isHotDice: false,
+      doubleArmed: false,
     };
+  }
+
+  _badgesOn() {
+    return !!GAME_MODES[this.gameMode]?.badges;
   }
 
   /** Найти наименьший свободный pN id (p0, p1, ...) без коллизий
@@ -116,6 +128,7 @@ export class GameRoom {
       isBot: false,
       color: color || DEFAULT_DICE_COLOR,
       loadout: [...DEFAULT_LOADOUT],
+      badge: DEFAULT_BADGE,
     };
     this.players.push(player);
     this._broadcastState();
@@ -144,6 +157,7 @@ export class GameRoom {
       isBot: true,
       color: persona.color || DEFAULT_DICE_COLOR,
       loadout: [...DEFAULT_LOADOUT],
+      badge: DEFAULT_BADGE,
     };
     this.players.push(bot);
     this._broadcastState();
@@ -221,6 +235,14 @@ export class GameRoom {
       return;
     }
 
+    if (msg.type === ClientMsg.SET_BADGE) {
+      const v = validateSetBadge(msg.payload);
+      if (!v) return this._sendError(player, 'bad_badge');
+      player.badge = v.badgeId;
+      this._broadcastState();
+      return;
+    }
+
     if (this.phase === 'lobby') {
       if (msg.type === ClientMsg.START_GAME) return this._startGame(player, msg.payload);
       if (msg.type === ClientMsg.ADD_BOT) {
@@ -270,6 +292,9 @@ export class GameRoom {
         this._broadcastState();
         return;
       }
+      if (msg.type === ClientMsg.ACTIVATE_BADGE) {
+        return this._activateBadge(player, msg.payload);
+      }
       if (this.farkleTimer) {
         return this._sendError(player, 'wait_for_pass');
       }
@@ -302,7 +327,6 @@ export class GameRoom {
     if (!v) return this._sendError(player, 'invalid_target');
     this.gameMode = v.mode;
     this.targetScore = v.targetScore;
-    const modeCfg = GAME_MODES[this.gameMode];
     for (const p of this.players) p.totalScore = 0;
     // Персона бота уже выставлена в addBot или в _newGame — НЕ перерандомим здесь,
     // иначе имя в лобби сменится при старте игры (баг отчёта пользователя).
@@ -312,9 +336,10 @@ export class GameRoom {
         const persona = rollBotPersona(Math.random, this._currentBotNames().filter((n) => n !== p.firstName));
         p.mood = persona.mood;
       }
-      if (p.isBot && modeCfg.allowSpecialDice) {
-        p.loadout = generateBotLoadout();
-      }
+      p.gameLoadout = p.isBot
+        ? generateBotLoadout(this.gameMode)
+        : sanitizeLoadout(p.loadout, this.gameMode);
+      this._setupBadge(p);
     }
     // Случайный первый игрок при каждом старте партии (через crypto.randomInt).
     this.currentPlayerIdx = randomInt(0, this.players.length);
@@ -324,6 +349,9 @@ export class GameRoom {
     this.phase = 'playing';
     const firstPlayerId = this.players[this.currentPlayerIdx].id;
     this._pushHistory({ type: 'game_started', targetScore: this.targetScore, firstPlayerId });
+    for (const p of this.players) {
+      if (p.gameBadge) this._pushHistory({ type: 'badge_chosen', playerId: p.id, badgeId: p.gameBadge });
+    }
     this._broadcastState();
   }
 
@@ -333,10 +361,97 @@ export class GameRoom {
     this.gameMode = DEFAULT_GAME_MODE;
     this.winnerId = null;
     this.turn = this._emptyTurn();
-    for (const p of this.players) p.totalScore = 0;
+    for (const p of this.players) {
+      p.totalScore = 0;
+      p.gameBadge = null;
+    }
     this._rerollBotPersonas();
     this.history = [];
     this._broadcastState();
+  }
+
+  _setupBadge(p) {
+    p.badgeLog = [];
+    if (!this._badgesOn()) {
+      p.gameBadge = null;
+      p.badgeCharges = 0;
+      p.shield = 0;
+      return;
+    }
+    const id = p.isBot ? BADGES[randomInt(0, BADGES.length)].id : (BADGES_MAP[p.badge] ? p.badge : DEFAULT_BADGE);
+    const badge = BADGES_MAP[id];
+    p.gameBadge = id;
+    p.badgeCharges = badge.kind === 'active' ? badge.charges : 0;
+    p.shield = badge.shield || 0;
+    p.totalScore += badge.startBonus || 0;
+  }
+
+  _activateBadge(player, payload) {
+    if (!this._badgesOn()) return this._sendError(player, 'badges_off');
+    const v = validateActivateBadge(payload);
+    if (!v) return this._sendError(player, 'bad_badge_payload');
+    const badge = BADGES_MAP[player.gameBadge];
+    const blocker = activationBlocker(player.gameBadge, {
+      charges: player.badgeCharges,
+      turn: this.turn,
+      isMyTurn: this._currentPlayer()?.id === player.id,
+      diceIndex: v.diceIndex,
+    });
+    if (blocker) return this._sendError(player, blocker);
+
+    player.badgeCharges -= 1;
+    const opponent = this.players.find((p) => p.id !== player.id);
+    if (opponent?.shield > 0) {
+      opponent.shield -= 1;
+      const entry = { type: 'badge_blocked', playerId: player.id, badgeId: badge.id, byPlayerId: opponent.id };
+      player.badgeLog.push(entry);
+      this._pushHistory(entry);
+      this._broadcastEvent(entry);
+      this._broadcastState();
+      return;
+    }
+
+    const entry = { type: 'badge_activated', playerId: player.id, badgeId: badge.id };
+    if (badge.id === 'doubling') {
+      this.turn.doubleArmed = true;
+    } else if (badge.id === 'transmutation') {
+      entry.diceIndex = v.diceIndex;
+      entry.from = this.turn.diceOnTable[v.diceIndex];
+      this.turn.diceOnTable[v.diceIndex] = 5;
+      entry.to = 5;
+    } else if (badge.id === 'exchange') {
+      entry.diceIndex = v.diceIndex;
+      entry.from = this.turn.diceOnTable[v.diceIndex];
+      const typeId = this.turn.diceTypeIds[v.diceIndex] || 'normal';
+      this.turn.diceOnTable[v.diceIndex] = rollWeighted(DICE_TYPES_MAP[typeId]?.weights || [1, 1, 1, 1, 1, 1]);
+      entry.to = this.turn.diceOnTable[v.diceIndex];
+    } else if (badge.id === 'resurrection') {
+      if (this.farkleTimer) { clearTimeout(this.farkleTimer); this.farkleTimer = null; }
+      this.turn.isFarkle = false;
+      this.turn.diceOnTable = rollDiceWeighted(this.turn.diceTypeIds);
+      entry.dice = [...this.turn.diceOnTable];
+      this._markFarkleRescued(player);
+    }
+    player.badgeLog.push(entry);
+    this._pushHistory(entry);
+    this._broadcastEvent(entry);
+
+    if (isFarkle(this.turn.diceOnTable)) {
+      this._triggerFarkle(player);
+    } else {
+      this._broadcastState();
+    }
+  }
+
+  // The farkle was undone by resurrection; flag it so the log does not report lost points.
+  _markFarkleRescued(player) {
+    for (let i = this.history.length - 1; i >= 0; i--) {
+      const h = this.history[i];
+      if (h.type === 'farkle' && h.playerId === player.id) {
+        h.rescued = true;
+        return;
+      }
+    }
   }
 
   _rerollBotPersonas() {
@@ -359,8 +474,7 @@ export class GameRoom {
     this.turn.awaitingFirstRoll = false;
     this.turn.isHotDice = false;
     this.turn.isFarkle = false;
-    const modeCfg = GAME_MODES[this.gameMode];
-    const loadout = modeCfg?.allowSpecialDice ? (player.loadout || DEFAULT_LOADOUT) : DEFAULT_LOADOUT;
+    const loadout = player.gameLoadout || DEFAULT_LOADOUT;
     const shuffled = shuffleArray([...loadout]);
     this.turn.diceTypeIds = shuffled;
     this.turn.diceOnTable = rollDiceWeighted(shuffled);
@@ -383,15 +497,23 @@ export class GameRoom {
     if (sel.some((i) => i >= this.turn.diceOnTable.length)) {
       return this._sendError(player, 'invalid_index');
     }
-    const hold = canHold(sel, this.turn.diceOnTable);
+    const hold = this._badgesOn()
+      ? canHoldWithBadge(sel, this.turn.diceOnTable, player.gameBadge)
+      : canHold(sel, this.turn.diceOnTable);
     if (!hold.ok) return this._sendError(player, `bad_hold:${hold.reason}`);
+    let heldScore = hold.score;
+    const doubled = this.turn.doubleArmed;
+    if (doubled) {
+      heldScore *= 2;
+      this.turn.doubleArmed = false;
+    }
 
     const heldValues = sel.map((i) => this.turn.diceOnTable[i]);
     const heldTypeIds = sel.map((i) => this.turn.diceTypeIds[i] || 'normal');
     const remainingValues = this.turn.diceOnTable.filter((_, i) => !sel.includes(i));
     const remainingTypeIds = this.turn.diceTypeIds.filter((_, i) => !sel.includes(i));
 
-    this.turn.roundScore += hold.score;
+    this.turn.roundScore += heldScore;
     this.turn.lockedDice = [...this.turn.lockedDice, ...heldValues];
     this.turn.lockedDiceTypeIds = [...this.turn.lockedDiceTypeIds, ...heldTypeIds];
     this.turn.diceOnTable = remainingValues;
@@ -400,7 +522,8 @@ export class GameRoom {
       type: 'held',
       playerId: player.id,
       dice: heldValues,
-      score: hold.score,
+      score: heldScore,
+      doubled,
       roundScore: this.turn.roundScore,
     });
 
@@ -425,8 +548,7 @@ export class GameRoom {
     }
 
     // score_and_roll
-    const modeCfg2 = GAME_MODES[this.gameMode];
-    const loadout = modeCfg2?.allowSpecialDice ? (player.loadout || DEFAULT_LOADOUT) : DEFAULT_LOADOUT;
+    const loadout = player.gameLoadout || DEFAULT_LOADOUT;
     if (this.turn.diceOnTable.length === 0) {
       this.turn.isHotDice = true;
       this.turn.lockedDice = [];
@@ -454,10 +576,11 @@ export class GameRoom {
     const lostScore = this.turn.roundScore;
     this._pushHistory({ type: 'farkle', playerId: player.id, lostScore });
     this._broadcastEvent({ type: 'farkle', playerId: player.id, lostScore });
+    const canRescue = this._badgesOn() && player.gameBadge === 'resurrection' && player.badgeCharges > 0;
     this.farkleTimer = setTimeout(() => {
       this.farkleTimer = null;
       this._passTurn();
-    }, FARKLE_PASS_DELAY_MS);
+    }, canRescue ? this.farkleRescueDelayMs : this.farklePassDelayMs);
     this._broadcastState();
   }
 
@@ -533,8 +656,16 @@ export class GameRoom {
           totalScore: p.totalScore,
           isBot: !!p.isBot,
           color: p.color || DEFAULT_DICE_COLOR,
-          loadout: p.loadout || DEFAULT_LOADOUT,
+          loadout: (this.phase === 'lobby' ? p.loadout : p.gameLoadout) || DEFAULT_LOADOUT,
         };
+        if (this.phase === 'lobby') {
+          base.badge = p.isBot ? null : p.badge;
+        } else if (p.gameBadge) {
+          base.badge = p.gameBadge;
+          base.badgeCharges = p.badgeCharges;
+          base.shield = p.shield;
+          base.badgeLog = p.badgeLog;
+        }
         if (p.isBot && finished) {
           base.mood = p.mood;
           base.moodLabel = moodLabel(p.mood);
