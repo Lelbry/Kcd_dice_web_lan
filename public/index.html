@@ -4,8 +4,32 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Кости — KCD2</title>
-  <link rel="stylesheet" href="/styles/main.css?v=2.10.1" />
-  <link rel="stylesheet" href="/styles/dice.css?v=2.10.1" />
+  <link rel="stylesheet" href="/styles/main.css?v=2.10.2" />
+  <link rel="stylesheet" href="/styles/dice.css?v=2.10.2" />
+  <script>
+    // If the game script fails to start (old browser, stale cache, blocked file), say so on screen:
+    // phones have no console to look at.
+    (function () {
+      var errors = [];
+      function remember(e) {
+        var t = e && (e.message || (e.reason && e.reason.message) || (e.target && e.target.src));
+        if (t) errors.push(String(t));
+      }
+      window.addEventListener('error', remember, true);
+      window.addEventListener('unhandledrejection', remember);
+      setTimeout(function () {
+        if (window.__kcdBooted) return;
+        var box = document.createElement('div');
+        box.id = 'boot-error';
+        box.innerHTML = '<b>Игра не загрузилась.</b><br>Обновите страницу. Если не помогает — очистите кэш браузера ' +
+          'или обновите браузер. Пришлите разработчику текст ниже:<pre></pre><button type="button">Обновить</button>';
+        box.querySelector('pre').textContent = (errors.join('\n') || 'нет ошибок, скрипт не запустился') +
+          '\n' + navigator.userAgent;
+        box.querySelector('button').onclick = function () { location.reload(); };
+        document.body.appendChild(box);
+      }, 6000);
+    })();
+  </script>
 </head>
 <body>
   <div id="app">
@@ -229,6 +253,6 @@
     <div id="reconnect-banner" hidden>Соединение прервано, переподключение…</div>
   </div>
 
-  <script type="module" src="/js/main.js?v=2.10.1"></script>
+  <script type="module" src="/js/main.js?v=2.10.2"></script>
 </body>
 </html>

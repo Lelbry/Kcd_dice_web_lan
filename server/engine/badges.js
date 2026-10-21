@@ -74,7 +74,7 @@ export const BADGES_MAP = Object.fromEntries(BADGES.map((b) => [b.id, b]));
 export const DEFAULT_BADGE = 'doubling';
 
 export function isValidBadge(id) {
-  return typeof id === 'string' && Object.hasOwn(BADGES_MAP, id);
+  return typeof id === 'string' && Object.prototype.hasOwnProperty.call(BADGES_MAP, id);
 }
 
 function removeAll(values, dice) {
