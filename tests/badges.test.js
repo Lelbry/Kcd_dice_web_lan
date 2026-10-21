@@ -80,7 +80,7 @@ function fakeHuman(id, badge) {
 function startBadgeRoom(b0, b1) {
   const room = new GameRoom({ farklePassDelayMs: 0, farkleRescueDelayMs: 0 });
   room.players = [fakeHuman('p0', b0), fakeHuman('p1', b1)];
-  room.handleMessage(room.players[0], { type: 'start_game', payload: { mode: 'badge', targetScore: 4000 } });
+  room.handleMessage(room.players[0], { type: 'start_game', payload: { mode: 'badge', targetScore: GAME_MODES.badge.defaultTarget } });
   room.currentPlayerIdx = 0;
   room.turn = room._emptyTurn();
   return room;
@@ -238,7 +238,7 @@ test('room: bot-vs-bot badge games always finish, every badge gets used', async 
     for (let i = 0; i < games; i++) {
       const room = await playBotGame([b.id, 'headstart']);
       assert.equal(room.phase, 'finished');
-      for (const h of room.history) if (h.type === 'badge_activated' || h.type === 'badge_blocked') used.add(h.badgeId);
+      for (const p of room.players) for (const e of p.badgeLog) used.add(e.badgeId);
     }
   }
   for (const b of BADGES.filter((x) => x.kind === 'active')) assert.ok(used.has(b.id), `${b.id} never activated`);
