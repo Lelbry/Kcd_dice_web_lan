@@ -4,8 +4,8 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Кости — KCD2</title>
-  <link rel="stylesheet" href="/styles/main.css?v=2.10.3" />
-  <link rel="stylesheet" href="/styles/dice.css?v=2.10.3" />
+  <link rel="stylesheet" href="/styles/main.css?v=2.10.4" />
+  <link rel="stylesheet" href="/styles/dice.css?v=2.10.4" />
   <script>
     // If the game script fails to start (old browser, stale cache, blocked file), say so on screen:
     // phones have no console to look at.
@@ -22,10 +22,36 @@
         var box = document.createElement('div');
         box.id = 'boot-error';
         box.innerHTML = '<b>Игра не загрузилась.</b><br>Обновите страницу. Если не помогает — очистите кэш браузера ' +
-          'или обновите браузер. Пришлите разработчику текст ниже:<pre></pre><button type="button">Обновить</button>';
-        box.querySelector('pre').textContent = (errors.join('\n') || 'нет ошибок, скрипт не запустился') +
-          '\n' + navigator.userAgent;
-        box.querySelector('button').onclick = function () { location.reload(); };
+          'или обновите браузер. Пришлите разработчику текст ниже:<pre></pre>' +
+          '<div class="boot-error-actions"><button type="button" data-boot="copy">📋 Скопировать</button>' +
+          '<button type="button" data-boot="reload">Обновить</button></div>';
+        var report = (errors.join('\n') || 'нет ошибок, скрипт не запустился') + '\n' + navigator.userAgent;
+        box.querySelector('pre').textContent = report;
+        box.querySelector('[data-boot="reload"]').onclick = function () { location.reload(); };
+        var copyBtn = box.querySelector('[data-boot="copy"]');
+        function copied(ok) { copyBtn.textContent = ok ? '✓ Скопировано' : 'Выделите текст и скопируйте'; }
+        // The site may run over plain http, where navigator.clipboard is missing: fall back to execCommand.
+        function legacyCopy() {
+          var ta = document.createElement('textarea');
+          ta.value = report;
+          ta.setAttribute('readonly', '');
+          ta.style.position = 'fixed';
+          ta.style.top = '-1000px';
+          document.body.appendChild(ta);
+          ta.select();
+          ta.setSelectionRange(0, report.length);
+          var ok = false;
+          try { ok = document.execCommand('copy'); } catch (e) {}
+          document.body.removeChild(ta);
+          copied(ok);
+        }
+        copyBtn.onclick = function () {
+          if (navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard.writeText(report).then(function () { copied(true); }, legacyCopy);
+          } else {
+            legacyCopy();
+          }
+        };
         document.body.appendChild(box);
       }, 10000);
     })();
@@ -253,6 +279,6 @@
     <div id="reconnect-banner" hidden>Соединение прервано, переподключение…</div>
   </div>
 
-  <script type="module" src="/js/main.js?v=2.10.3"></script>
+  <script type="module" src="/js/main.js?v=2.10.4"></script>
 </body>
 </html>
