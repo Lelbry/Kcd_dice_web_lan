@@ -1,4 +1,5 @@
 import { BADGES, BADGES_MAP, DEFAULT_BADGE, activationBlocker } from './engine/badges.js';
+import { toggleInfoCard } from './infocard.js';
 
 const svg = (body) =>
   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
@@ -37,7 +38,7 @@ export function renderBadgeHelp(container) {
   const intro = document.createElement('div');
   intro.innerHTML = `
     <h3 class="help-section-title">Как играть с бляхой</h3>
-    <p class="help-text">В режиме «Игра с бляхой» каждый игрок до начала партии выбирает одну бляху. Бляху соперника видно на панели над столом.</p>
+    <p class="help-text">В режиме «Игра с бляхой» каждый игрок до начала партии выбирает одну бляху. Бляху соперника видно на панели над столом — нажмите на неё, чтобы прочитать, что она делает.</p>
     <p class="help-text"><strong>Активные</strong> бляхи тратят заряд: примените их кнопкой «Применить» или клавишей <strong>B</strong> в свой ход. <strong>Пассивные</strong> действуют всю партию без участия игрока. Шулерские кости в этом режиме тоже разрешены — как в «Карманных костях».</p>`;
   container.appendChild(intro);
 
@@ -167,14 +168,65 @@ export function activationState(state, store) {
   return { needsDie: badge.target === 'die', rescue: badge.target === 'farkle' };
 }
 
+function pulsing(store, player) {
+  return store.badgePulse?.playerId === player.id && store.badgePulse.until > Date.now();
+}
+
+// Compact badge for the score table (phone layout): medallion, charges, tap for details.
+export function scoreBadge(state, store, player) {
+  const badge = BADGES_MAP[player.badge];
+  if (!badge) return null;
+  const mine = player.id === store.myPlayerId;
+  const el = document.createElement('span');
+  el.className = 'score-badge' + (pulsing(store, player) ? ' pulse' : '');
+  el.dataset.inspect = 'badge';
+  el.title = badge.name;
+  const used = badge.kind === 'active' && player.badgeCharges === 0;
+  el.appendChild(medallion(badge.id, used ? ['spent'] : []));
+  if (badge.kind === 'active') el.appendChild(charges(badge, player.badgeCharges));
+  if (badge.id === 'doubling' && state.turn?.doubleArmed && state.currentPlayerId === player.id) {
+    const f = document.createElement('span');
+    f.className = 'score-badge-flag';
+    f.textContent = '×2';
+    el.appendChild(f);
+  }
+  el.addEventListener('click', () => toggleInfoCard(el, badgeInfo(badge, player, mine), `score-badge:${player.id}`));
+  return el;
+}
+
+// Phone layout: the badge action lives with the other action buttons.
+export function renderBadgeAction(state, store) {
+  const btn = document.querySelector('#actions-panel [data-action="badge"]');
+  if (!btn) return;
+  const me = state.players.find((p) => p.id === store.myPlayerId);
+  const badge = BADGES_MAP[me?.badge];
+  btn.hidden = !badge || badge.kind !== 'active' || state.phase !== 'playing';
+  if (btn.hidden) return;
+  const act = activationState(state, store);
+  btn.disabled = !act && !store.badgeTargeting;
+  btn.classList.toggle('urgent', !!act?.rescue);
+  const label = btn.querySelector('.label');
+  label.innerHTML = '';
+  label.appendChild(medallion(badge.id));
+  const text = document.createElement('span');
+  if (store.badgeTargeting) text.textContent = 'Отмена — не тратить бляху';
+  else if (act?.rescue) text.textContent = 'Воскресить!';
+  else text.textContent = `${badge.name} (${me.badgeCharges})`;
+  label.appendChild(text);
+}
+
 function chip(state, store, player, mine) {
   const badge = BADGES_MAP[player.badge];
   const el = document.createElement('div');
   el.className = `badge-chip ${mine ? 'mine' : 'theirs'}`;
   el.dataset.badge = badge.id;
   el.dataset.playerId = player.id;
-  el.dataset.info = 'badge';
-  if (store.badgePulse?.playerId === player.id && store.badgePulse.until > Date.now()) el.classList.add('pulse');
+  el.dataset.inspect = 'badge';
+  el.addEventListener('click', (e) => {
+    if (e.target.closest('[data-action]')) return;
+    toggleInfoCard(el, badgeInfo(badge, player, mine), `badge:${player.id}`);
+  });
+  if (pulsing(store, player)) el.classList.add('pulse');
   const used = badge.kind === 'active' && player.badgeCharges === 0;
   el.appendChild(medallion(badge.id, used ? ['spent'] : []));
   const text = document.createElement('span');
@@ -216,6 +268,34 @@ function chip(state, store, player, mine) {
     el.appendChild(btn);
   }
   return el;
+}
+
+function badgeInfo(badge, player, mine) {
+  const box = document.createElement('div');
+  box.className = 'info-badge';
+  const head = document.createElement('div');
+  head.className = 'info-head';
+  head.appendChild(medallion(badge.id, ['large']));
+  const titles = document.createElement('div');
+  titles.innerHTML = '<div class="info-owner"></div><div class="info-name"></div><div class="info-kind"></div>';
+  titles.querySelector('.info-owner').textContent = mine ? 'Ваша бляха' : `Бляха игрока ${player.name}`;
+  titles.querySelector('.info-name').textContent = badge.name;
+  titles.querySelector('.info-kind').textContent = badge.kind === 'active'
+    ? `Активная · осталось зарядов: ${player.badgeCharges} из ${badge.charges}`
+    : badgeKindLabel(badge);
+  head.appendChild(titles);
+  box.appendChild(head);
+  const desc = document.createElement('p');
+  desc.className = 'info-desc';
+  desc.textContent = badge.description;
+  box.appendChild(desc);
+  if (BADGE_TIPS[badge.id]) {
+    const tip = document.createElement('p');
+    tip.className = 'info-tip';
+    tip.textContent = BADGE_TIPS[badge.id];
+    box.appendChild(tip);
+  }
+  return box;
 }
 
 export function renderBadgeBar(state, store) {

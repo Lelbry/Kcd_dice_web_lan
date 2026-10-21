@@ -3,6 +3,7 @@ import { Store } from './state.js';
 import { render, showOverlay } from './ui.js';
 import { openBadgePicker, activationState, renderBadgeHelp } from './badges.js';
 import { BADGES_MAP } from './engine/badges.js';
+import { hideInfoCard } from './infocard.js';
 import { MusicPlayer } from './music.js';
 
 function getClientId() {
@@ -223,6 +224,13 @@ store.subscribe(() => {
   if (lobbyJoined) sendLoadout();
 });
 
+let _prevInfoTurn = null;
+store.subscribe(() => {
+  const key = `${store.state?.phase}:${store.state?.currentPlayerId}`;
+  if (key !== _prevInfoTurn) hideInfoCard();
+  _prevInfoTurn = key;
+});
+
 let _prevBadge = null;
 store.subscribe(() => {
   if (store.myBadge === _prevBadge) return;
@@ -372,6 +380,8 @@ function bindUI() {
       if (confirm('Вы уверены, что хотите сдаться?')) {
         net.send({ type: 'surrender' });
       }
+    } else if (a === 'badge') {
+      useBadge();
     } else if (a === 'help') {
       toggleHelp(true);
     } else if (a === 'new-game') {

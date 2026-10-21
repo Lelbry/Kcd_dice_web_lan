@@ -58,6 +58,7 @@ test('pocket game with pie dice renders pie glyphs and plays to a win', async ({
   await expect(page.locator('#game')).toBeVisible();
 
   let sawPieOnTable = false;
+  let inspectedOpponent = false;
   const finished = page.locator('#finished-modal');
   const roll = page.locator('#actions-panel [data-action="roll"]');
   const bank = page.locator('#actions-panel [data-action="score-and-bank"]');
@@ -69,6 +70,19 @@ test('pocket game with pie dice renders pie glyphs and plays to a win', async ({
       await expect(first.locator('.pip-glyph svg').first()).toBeAttached();
       expect(await first.locator('.pip').count()).toBe(0);
       sawPieOnTable = true;
+    }
+
+    const oppDie = page.locator('#dice-area .die.inspectable').first();
+    if (!inspectedOpponent && (await oppDie.count()) > 0) {
+      await oppDie.click({ force: true });
+      const card = page.locator('#info-card');
+      if (await card.isVisible()) {
+        await expect(card).toContainText('Кость игрока');
+        await expect(card.locator('.prob-bar')).toHaveCount(6);
+        await page.keyboard.press('Escape');
+        await expect(card).toBeHidden();
+        inspectedOpponent = true;
+      }
     }
 
     if ((await roll.isVisible()) && (await roll.isEnabled())) {
@@ -90,6 +104,7 @@ test('pocket game with pie dice renders pie glyphs and plays to a win', async ({
 
   await expect(finished).toBeVisible();
   expect(sawPieOnTable).toBe(true);
+  expect(inspectedOpponent).toBe(true);
   expect(errors).toEqual([]);
 });
 
@@ -162,4 +177,22 @@ test('badge mode: pick a badge, use it on a die, read about it in help', async (
   await page.locator('[data-help-tab="badges"]').click();
   await expect(page.locator('#help-badges .help-badge')).toHaveCount(8);
   expect(errors).toEqual([]);
+});
+
+test('phone layout: badges move into the score table and the action list', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openLobbyWithBot(page, 'badge');
+  await page.locator('#start-btn').click();
+  await expect(page.locator('#game')).toBeVisible();
+  await expect(page.locator('#badge-bar')).toBeHidden();
+  const row = page.locator('.score-table .badge-row');
+  await expect(row).toBeVisible();
+  await expect(row.locator('.score-badge')).toHaveCount(2);
+  await expect(page.locator('#actions-panel [data-action="badge"]')).toBeVisible();
+
+  await row.locator('.score-badge').last().click();
+  await expect(page.locator('#info-card')).toContainText('Бляха игрока');
+
+  const indicator = await page.locator('#turn-indicator').boundingBox();
+  expect(indicator.height).toBeLessThan(60);
 });

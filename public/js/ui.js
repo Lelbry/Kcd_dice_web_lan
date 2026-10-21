@@ -4,7 +4,8 @@ import { computeDieGradient, adjustLightness, hexToHsl } from './color.js';
 import { DICE_TYPES, DICE_TYPES_MAP, MAX_SPECIAL_DICE, MAX_SAME_SPECIAL, modeAllowsSpecialDice } from './engine/dice-types.js';
 import { PIP_GLYPHS, FACE_GLYPHS } from './glyphs.js';
 import { scoreWithBadge, BADGES_MAP } from './engine/badges.js';
-import { renderBadgeLobby, renderBadgeBar, renderBadgesReveal, badgeHistoryText } from './badges.js';
+import { renderBadgeLobby, renderBadgeBar, renderBadgeAction, renderBadgesReveal, badgeHistoryText, scoreBadge } from './badges.js';
+import { toggleInfoCard } from './infocard.js';
 
 const DEFAULT_DICE_COLOR = '#f4e8c1';
 
@@ -286,6 +287,17 @@ function diceCard(store, dt, loadout, slotIdx, currentSpecials, currentSlotIsSpe
   info.innerHTML = `<div class="card-name">${escapeHtml(dt.name)}${stockLabel}</div><div class="card-desc">${escapeHtml(dt.description)}</div>`;
   card.appendChild(info);
 
+  card.appendChild(probBars(dt));
+
+  if (!atLimit) {
+    card.addEventListener('click', () => {
+      if (store.setLoadoutSlot(_pickerSlotIdx, dt.id)) modal.hidden = true;
+    });
+  }
+  return card;
+}
+
+function probBars(dt) {
   const bars = document.createElement('div');
   bars.className = 'prob-bars';
   const total = dt.weights.reduce((s, w) => s + w, 0);
@@ -296,19 +308,54 @@ function diceCard(store, dt, loadout, slotIdx, currentSpecials, currentSlotIsSpe
     bar.innerHTML = `<span class="bar-face">${f + 1}</span><div class="bar-track"><div class="bar-fill" style="width:${pct}%"></div></div><span class="bar-pct">${pct}%</span>`;
     bars.appendChild(bar);
   }
-  card.appendChild(bars);
+  return bars;
+}
 
-  if (!atLimit) {
-    card.addEventListener('click', () => {
-      if (store.setLoadoutSlot(_pickerSlotIdx, dt.id)) modal.hidden = true;
-    });
-  }
-  return card;
+function dieKindLabel(dt) {
+  if (dt.special) return 'Шулерская кость';
+  return dt.id === 'normal' ? 'Обычная кость' : 'Только внешний вид — катится честно';
+}
+
+function dieInfo(dt, face, ownerLabel) {
+  const box = document.createElement('div');
+  box.className = 'info-die';
+  const head = document.createElement('div');
+  head.className = 'info-head';
+  const preview = dieElement(face, ['locked'], dt.id);
+  applyDieColor(preview, dt.color, dt.special);
+  head.appendChild(preview);
+  const titles = document.createElement('div');
+  titles.innerHTML = '<div class="info-owner"></div><div class="info-name"></div><div class="info-kind"></div>';
+  titles.querySelector('.info-owner').textContent = ownerLabel;
+  titles.querySelector('.info-name').textContent = dt.name;
+  const kind = titles.querySelector('.info-kind');
+  kind.textContent = dieKindLabel(dt);
+  if (dt.special) kind.classList.add('cheat');
+  head.appendChild(titles);
+  box.appendChild(head);
+  const desc = document.createElement('p');
+  desc.className = 'info-desc';
+  desc.textContent = dt.description;
+  box.appendChild(desc);
+  box.appendChild(probBars(dt));
+  return box;
+}
+
+// Clicking a die you cannot select shows what it is — this is how players read each other's dice.
+function makeInspectable(el, state, store, typeId, ownerId, key) {
+  const dt = DICE_TYPES_MAP[typeId] || DICE_TYPES_MAP.normal;
+  el.classList.add('inspectable');
+  el.dataset.inspect = 'die';
+  el.addEventListener('click', () => {
+    const owner = ownerId === store.myPlayerId ? 'Ваша кость' : `Кость игрока ${nameOf(state, ownerId)}`;
+    toggleInfoCard(el, dieInfo(dt, Number(el.dataset.value), owner), key);
+  });
 }
 
 function renderGame(state, store) {
   renderTurnIndicator(state, store);
   renderBadgeBar(state, store);
+  renderBadgeAction(state, store);
   renderScorePanel(state, store);
   renderDice(state, store);
   renderLockedTray(state, store);
@@ -335,7 +382,8 @@ function renderTurnIndicator(state, store) {
     textEl.textContent = `Ваш ход${modeTag}${hint}`;
   } else {
     const oppName = nameOf(state, state.currentPlayerId);
-    textEl.textContent = `Ход: ${oppName}${modeTag}`;
+    const hint = state.turn?.diceOnTable?.length ? '  (нажмите на кость — узнаете о ней)' : '';
+    textEl.textContent = `Ход: ${oppName}${modeTag}${hint}`;
   }
 }
 
@@ -388,6 +436,16 @@ function renderScorePanel(state, store) {
       </tr>
     </tbody>
   `;
+  const b1 = scoreBadge(state, store, p1);
+  const b2 = scoreBadge(state, store, p2);
+  if (b1 || b2) {
+    const row = document.createElement('tr');
+    row.className = 'badge-row';
+    row.innerHTML = '<td class="p1"></td><td class="mid label">бляха</td><td class="p2"></td>';
+    if (b1) row.children[0].appendChild(b1);
+    if (b2) row.children[2].appendChild(b2);
+    table.tBodies[0].prepend(row);
+  }
   panel.appendChild(table);
 }
 
@@ -512,6 +570,8 @@ function renderDice(state, store) {
       el.addEventListener('click', () => store.onBadgeTarget?.(i));
     } else if (isMine && !blocked && !store.rolling) {
       el.addEventListener('click', () => store.toggleSelection(i));
+    } else if (!isMine && !store.rolling) {
+      makeInspectable(el, state, store, typeId, state.currentPlayerId, `table:${i}:${typeId}:${realV}`);
     }
     area.appendChild(el);
   }
@@ -546,6 +606,7 @@ function renderLockedTray(state, store) {
       const el = dieElement(locked[i], ['locked'], typeId);
       const dt = DICE_TYPES_MAP[typeId];
       applyDieColor(el, dt?.color || DEFAULT_DICE_COLOR, dt?.special);
+      makeInspectable(el, state, store, typeId, state.currentPlayerId, `locked:${i}:${typeId}`);
       tray.appendChild(el);
     }
   }
@@ -562,6 +623,7 @@ function renderLockedTray(state, store) {
       const el = dieElement(v, ['locked', 'tentative'], typeId);
       const dt2 = DICE_TYPES_MAP[typeId];
       applyDieColor(el, dt2?.color || DEFAULT_DICE_COLOR, dt2?.special);
+      makeInspectable(el, state, store, typeId, state.currentPlayerId, `tentative:${j}:${typeId}`);
       tray.appendChild(el);
     }
   }
