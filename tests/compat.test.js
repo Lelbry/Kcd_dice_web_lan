@@ -40,3 +40,10 @@ test('CSS has no layout-critical properties newer than Chrome 74', () => {
     });
   }
 });
+
+test('boot check in index.html probes every client module', () => {
+  const html = readFileSync('public/index.html', 'utf8');
+  const listed = JSON.parse(html.match(/var MODULES = (\[[^\]]*\])/)[1].replace(/'/g, '"')).sort();
+  const actual = files('public/js', '.js').map((f) => f.replace(/\\/g, '/').replace(/^public\/js\//, '').replace(/\.js$/, '')).sort();
+  assert.deepEqual(listed, actual);
+});

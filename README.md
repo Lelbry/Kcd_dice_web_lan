@@ -2,7 +2,7 @@
 
 Веб-реализация игры в кости из Kingdom Come: Deliverance II. Два игрока, онлайн через лобби-коды или по локальной сети (Radmin VPN), игра в браузере без установки.
 
-![version](https://img.shields.io/badge/version-2.10.4-brightgreen)
+![version](https://img.shields.io/badge/version-2.10.5-brightgreen)
 ![license](https://img.shields.io/badge/license-MIT-blue)
 ![node](https://img.shields.io/badge/node-%E2%89%A520-green)
 
