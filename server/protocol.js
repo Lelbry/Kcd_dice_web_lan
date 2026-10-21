@@ -1,5 +1,6 @@
 import { TARGET_OPTIONS, DICE_COUNT, GAME_MODES, GAME_MODE_IDS, DEFAULT_GAME_MODE } from './engine/rules.js';
 import { validateLoadoutArray } from './engine/dice-types.js';
+import { isValidBadge } from './engine/badges.js';
 
 export const ClientMsg = {
   HELLO: 'hello',
@@ -16,6 +17,8 @@ export const ClientMsg = {
   SET_LOADOUT: 'set_loadout',
   SURRENDER: 'surrender',
   SELECT_PREVIEW: 'select_preview',
+  SET_BADGE: 'set_badge',
+  ACTIVATE_BADGE: 'activate_badge',
   PONG: 'pong',
 };
 
@@ -89,4 +92,15 @@ export function validateSelection(payload) {
   if (!sel.every((i) => Number.isInteger(i) && i >= 0 && i < DICE_COUNT)) return null;
   if (new Set(sel).size !== sel.length) return null;
   return { selection: sel };
+}
+
+export function validateSetBadge(payload) {
+  return isValidBadge(payload?.badgeId) ? { badgeId: payload.badgeId } : null;
+}
+
+export function validateActivateBadge(payload) {
+  const idx = payload?.diceIndex;
+  if (idx === undefined || idx === null) return { diceIndex: null };
+  if (!Number.isInteger(idx) || idx < 0 || idx >= DICE_COUNT) return null;
+  return { diceIndex: idx };
 }

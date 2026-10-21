@@ -18,6 +18,15 @@ export const GAME_MODES = {
     defaultTarget: 4000,
     allowSpecialDice: true,
   },
+  badge: {
+    id: 'badge',
+    name: 'Игра с бляхой',
+    targets: [4000, 6000, 8000, 10000, 15000],
+    canonTargets: [4000, 6000, 8000],
+    defaultTarget: 4000,
+    allowSpecialDice: true,
+    badges: true,
+  },
 };
 
 export const GAME_MODE_IDS = Object.keys(GAME_MODES);
