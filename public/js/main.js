@@ -426,16 +426,27 @@ function bindUI() {
   }
 
   // --- Music controls ---
+  // The top bar has the sliders on desktop; on a phone they live in #sound-panel. Both copies stay in sync.
   const muteBtn = document.getElementById('mute-btn');
-  const volumeSlider = document.getElementById('volume-slider');
+  const panelMuteBtn = document.getElementById('panel-mute-btn');
+  const soundPanel = document.getElementById('sound-panel');
+  const volumeSliders = document.querySelectorAll('.volume-input');
+  const phoneLayout = window.matchMedia('(max-width: 600px)');
 
   function updateMuteIcon() {
-    if (!muteBtn) return;
-    muteBtn.textContent = music.isMuted() || music.getVolume() === 0 ? '🔇' : '🔊';
+    const icon = music.isMuted() || music.getVolume() === 0 ? '🔇' : '🔊';
+    if (muteBtn) muteBtn.textContent = icon;
+    if (panelMuteBtn) panelMuteBtn.textContent = icon;
   }
-  if (volumeSlider) {
-    volumeSlider.value = String(Math.round(music.getVolume() * 100));
-    volumeSlider.addEventListener('input', (e) => {
+  function toggleMute() {
+    const next = !music.isMuted();
+    music.setMuted(next);
+    localStorage.setItem('kcd2_music_muted', next ? '1' : '0');
+    updateMuteIcon();
+  }
+  volumeSliders.forEach((slider) => {
+    slider.value = String(Math.round(music.getVolume() * 100));
+    slider.addEventListener('input', (e) => {
       const v = Number(e.target.value) / 100;
       music.setVolume(v);
       localStorage.setItem('kcd2_music_volume', String(v));
@@ -443,16 +454,26 @@ function bindUI() {
         music.setMuted(false);
         localStorage.setItem('kcd2_music_muted', '0');
       }
+      volumeSliders.forEach((other) => { if (other !== slider) other.value = e.target.value; });
       updateMuteIcon();
     });
-  }
+  });
   if (muteBtn) {
     muteBtn.addEventListener('click', () => {
-      const next = !music.isMuted();
-      music.setMuted(next);
-      localStorage.setItem('kcd2_music_muted', next ? '1' : '0');
-      updateMuteIcon();
+      if (phoneLayout.matches && soundPanel) soundPanel.hidden = !soundPanel.hidden;
+      else toggleMute();
     });
+  }
+  if (panelMuteBtn) panelMuteBtn.addEventListener('click', toggleMute);
+  if (soundPanel) {
+    document.addEventListener('click', (e) => {
+      if (soundPanel.hidden || e.target.closest('#sound-panel, #mute-btn')) return;
+      soundPanel.hidden = true;
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.code === 'Escape') soundPanel.hidden = true;
+    });
+    phoneLayout.addListener(() => { soundPanel.hidden = true; });
   }
   updateMuteIcon();
 
@@ -487,15 +508,16 @@ function bindUI() {
     });
   }
 
-  const brightnessSlider = document.getElementById('brightness-slider');
-  if (brightnessSlider) {
-    brightnessSlider.value = String(getDiceBrightness());
-    brightnessSlider.addEventListener('input', (e) => {
+  const brightnessSliders = document.querySelectorAll('.brightness-input');
+  brightnessSliders.forEach((slider) => {
+    slider.value = String(getDiceBrightness());
+    slider.addEventListener('input', (e) => {
       const v = Number(e.target.value);
       localStorage.setItem('kcd2_dice_brightness', String(v));
+      brightnessSliders.forEach((other) => { if (other !== slider) other.value = e.target.value; });
       store._notify();
     });
-  }
+  });
 
   const pickerModal = document.getElementById('dice-picker-modal');
   if (pickerModal) {

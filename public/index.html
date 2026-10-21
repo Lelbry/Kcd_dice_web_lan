@@ -63,15 +63,25 @@
       <div class="brand">Кости <span class="subtle">— KCD2</span></div>
       <div class="music-controls">
         <button id="mute-btn" class="ghost icon" title="Звук / без звука" aria-label="mute">🔊</button>
-        <input id="volume-slider" type="range" min="0" max="100" step="1" title="Громкость музыки" />
+        <input id="volume-slider" class="volume-input" type="range" min="0" max="100" step="1" title="Громкость музыки" />
         <button id="prev-btn" class="ghost icon" title="Предыдущий трек" aria-label="prev">⏮</button>
         <button id="skip-btn" class="ghost icon" title="Пропустить трек" aria-label="skip">⏭</button>
       </div>
       <div class="brightness-control" title="Яркость кубиков (локальная)">
         <span class="brightness-icon" aria-hidden="true">☼</span>
-        <input id="brightness-slider" type="range" min="0" max="100" step="1" />
+        <input id="brightness-slider" class="brightness-input" type="range" min="0" max="100" step="1" />
       </div>
       <button id="log-toggle" class="ghost">Лог</button>
+      <div id="sound-panel" class="sound-panel" hidden>
+        <div class="sound-panel-row">
+          <button id="panel-mute-btn" class="ghost icon" title="Звук / без звука" aria-label="mute">🔊</button>
+          <input class="volume-input" type="range" min="0" max="100" step="1" aria-label="Громкость музыки" />
+        </div>
+        <div class="sound-panel-row">
+          <span class="brightness-icon" aria-hidden="true">☼</span>
+          <input class="brightness-input" type="range" min="0" max="100" step="1" aria-label="Яркость кубиков" />
+        </div>
+      </div>
     </header>
 
     <section id="lobby-select" class="screen" hidden>

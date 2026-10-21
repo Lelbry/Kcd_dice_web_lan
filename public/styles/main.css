@@ -37,6 +37,7 @@ html, body {
 }
 
 .topbar {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -77,7 +78,8 @@ html, body {
   border-color: var(--gold);
   background: rgba(217,179,90,0.08);
 }
-.music-controls input[type="range"] {
+.music-controls input[type="range"],
+.sound-panel input[type="range"] {
   -webkit-appearance: none;
   appearance: none;
   width: 110px;
@@ -86,7 +88,8 @@ html, body {
   border-radius: 2px;
   outline: none;
 }
-.music-controls input[type="range"]::-webkit-slider-thumb {
+.music-controls input[type="range"]::-webkit-slider-thumb,
+.sound-panel input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
   width: 14px;
@@ -96,7 +99,8 @@ html, body {
   border: 1px solid var(--gold-2);
   cursor: pointer;
 }
-.music-controls input[type="range"]::-moz-range-thumb {
+.music-controls input[type="range"]::-moz-range-thumb,
+.sound-panel input[type="range"]::-moz-range-thumb {
   width: 14px;
   height: 14px;
   background: var(--gold);
@@ -104,6 +108,50 @@ html, body {
   border: 1px solid var(--gold-2);
   cursor: pointer;
 }
+
+/* Phone: the top bar has no room for sliders, so the speaker button opens this panel. */
+.sound-panel {
+  position: absolute;
+  top: 100%;
+  right: 8px;
+  z-index: 60;
+  margin-top: 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--wood-edge);
+  border-radius: 8px;
+  background: #2a1a0c;
+  box-shadow: 0 6px 16px rgba(0,0,0,0.5);
+}
+.sound-panel-row {
+  display: flex;
+  align-items: center;
+  padding: 6px 0;
+}
+.sound-panel-row > :first-child {
+  width: 40px;
+  margin-right: 12px;
+  text-align: center;
+}
+.sound-panel .icon {
+  -webkit-tap-highlight-color: transparent;
+  padding: 6px 8px;
+  font-size: 18px;
+  line-height: 1;
+  background: transparent;
+  border: 1px solid var(--wood-edge);
+  border-radius: 6px;
+  color: var(--cream);
+}
+.sound-panel .brightness-icon {
+  color: var(--gold);
+  font-size: 20px;
+}
+.sound-panel input[type="range"] {
+  width: 160px;
+  height: 6px;
+}
+.sound-panel input[type="range"]::-webkit-slider-thumb { width: 22px; height: 22px; }
+.sound-panel input[type="range"]::-moz-range-thumb { width: 22px; height: 22px; }
 
 /* Локальная яркость кубиков — рядом с music-controls */
 .brightness-control {
@@ -951,7 +999,7 @@ button.ghost:hover { color: var(--cream); border-color: var(--gold); }
   .actions-panel { max-width: none; }
   .action-btn .hotkey { display: none; }
   .topbar .music-controls input[type="range"],
-  .topbar .brightness-control input[type="range"] { display: none; }
+  .topbar .brightness-control { display: none; }
   .brand .subtle { display: none; }
   .lobby-card { min-width: 0; padding: 12px; width: 100%; }
   .lobby-card h1 { font-size: 20px; margin-bottom: 12px; }
