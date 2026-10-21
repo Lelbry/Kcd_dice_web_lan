@@ -161,7 +161,7 @@ export function openBadgePicker(store) {
 // What the activate button can do right now: null if nothing, or { needsDie, rescue }.
 export function activationState(state, store) {
   const me = state.players.find((p) => p.id === store.myPlayerId);
-  const badge = BADGES_MAP[me?.badge];
+  const badge = BADGES_MAP[me && me.badge];
   if (!badge || badge.kind !== 'active' || state.phase !== 'playing' || store.rolling) return null;
   const ctx = { charges: me.badgeCharges, turn: state.turn, isMyTurn: store.isMyTurn(), diceIndex: 0 };
   if (activationBlocker(badge.id, ctx)) return null;
@@ -169,7 +169,7 @@ export function activationState(state, store) {
 }
 
 function pulsing(store, player) {
-  return store.badgePulse?.playerId === player.id && store.badgePulse.until > Date.now();
+  return !!store.badgePulse && store.badgePulse.playerId === player.id && store.badgePulse.until > Date.now();
 }
 
 // Compact badge for the score table (phone layout): medallion, charges, tap for details.
@@ -184,7 +184,7 @@ export function scoreBadge(state, store, player) {
   const used = badge.kind === 'active' && player.badgeCharges === 0;
   el.appendChild(medallion(badge.id, used ? ['spent'] : []));
   if (badge.kind === 'active') el.appendChild(charges(badge, player.badgeCharges));
-  if (badge.id === 'doubling' && state.turn?.doubleArmed && state.currentPlayerId === player.id) {
+  if (badge.id === 'doubling' && state.turn && state.turn.doubleArmed && state.currentPlayerId === player.id) {
     const f = document.createElement('span');
     f.className = 'score-badge-flag';
     f.textContent = '×2';
@@ -199,18 +199,18 @@ export function renderBadgeAction(state, store) {
   const btn = document.querySelector('#actions-panel [data-action="badge"]');
   if (!btn) return;
   const me = state.players.find((p) => p.id === store.myPlayerId);
-  const badge = BADGES_MAP[me?.badge];
+  const badge = BADGES_MAP[me && me.badge];
   btn.hidden = !badge || badge.kind !== 'active' || state.phase !== 'playing';
   if (btn.hidden) return;
   const act = activationState(state, store);
   btn.disabled = !act && !store.badgeTargeting;
-  btn.classList.toggle('urgent', !!act?.rescue);
+  btn.classList.toggle('urgent', !!(act && act.rescue));
   const label = btn.querySelector('.label');
   label.innerHTML = '';
   label.appendChild(medallion(badge.id));
   const text = document.createElement('span');
   if (store.badgeTargeting) text.textContent = 'Отмена — не тратить бляху';
-  else if (act?.rescue) text.textContent = 'Воскресить!';
+  else if (act && act.rescue) text.textContent = 'Воскресить!';
   else text.textContent = `${badge.name} (${me.badgeCharges})`;
   label.appendChild(text);
 }
@@ -244,7 +244,7 @@ function chip(state, store, player, mine) {
     s.textContent = 'щит готов';
     text.appendChild(s);
   }
-  if (badge.id === 'doubling' && state.turn?.doubleArmed && state.currentPlayerId === player.id) {
+  if (badge.id === 'doubling' && state.turn && state.turn.doubleArmed && state.currentPlayerId === player.id) {
     const s = document.createElement('span');
     s.className = 'badge-chip-flag hot';
     s.textContent = '×2 на следующие кости';
@@ -262,8 +262,8 @@ function chip(state, store, player, mine) {
       btn.textContent = 'Отмена';
       btn.classList.add('targeting');
     } else {
-      btn.innerHTML = `${act?.rescue ? 'Воскресить!' : 'Применить'} <span class="hotkey">B</span>`;
-      if (act?.rescue) btn.classList.add('urgent');
+      btn.innerHTML = `${act && act.rescue ? 'Воскресить!' : 'Применить'} <span class="hotkey">B</span>`;
+      if (act && act.rescue) btn.classList.add('urgent');
     }
     el.appendChild(btn);
   }
@@ -307,8 +307,8 @@ export function renderBadgeBar(state, store) {
   bar.innerHTML = '';
   const me = state.players.find((p) => p.id === store.myPlayerId);
   const opp = state.players.find((p) => p.id !== store.myPlayerId);
-  if (me?.badge) bar.appendChild(chip(state, store, me, true));
-  if (opp?.badge) bar.appendChild(chip(state, store, opp, false));
+  if (me && me.badge) bar.appendChild(chip(state, store, me, true));
+  if (opp && opp.badge) bar.appendChild(chip(state, store, opp, false));
 }
 
 export function renderBadgesReveal(state) {

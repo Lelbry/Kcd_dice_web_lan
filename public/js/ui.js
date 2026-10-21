@@ -64,7 +64,8 @@ export function dieElement(value, classes = [], typeId = null) {
   el.className = ['die', ...classes].join(' ');
   el.dataset.value = String(value);
   if (typeId) el.dataset.type = typeId;
-  const glyph = DICE_TYPES_MAP[typeId]?.faceGlyphs?.[value];
+  const dt = DICE_TYPES_MAP[typeId];
+  const glyph = dt && dt.faceGlyphs && dt.faceGlyphs[value];
   if (glyph && FACE_GLYPHS[glyph]) {
     const g = document.createElement('span');
     g.className = `die-glyph glyph-${glyph}`;
@@ -166,7 +167,7 @@ function renderLobby(state, store) {
   }
 
   const currentMode = store._selectedMode || DEFAULT_GAME_MODE;
-  const modeRadio = modeSelector?.querySelector(`input[value="${currentMode}"]`);
+  const modeRadio = modeSelector && modeSelector.querySelector(`input[value="${currentMode}"]`);
   if (modeRadio && !modeRadio.checked) modeRadio.checked = true;
 
   const loadoutEl = document.getElementById('dice-loadout');
@@ -218,14 +219,14 @@ function renderLoadout(store) {
     const typeId = loadout[i] || 'normal';
     const dt = DICE_TYPES_MAP[typeId];
     const slot = document.createElement('div');
-    slot.className = 'loadout-slot' + (dt?.special ? ' special' : '');
+    slot.className = 'loadout-slot' + (dt && dt.special ? ' special' : '');
     const preview = dieElement(i + 1, ['locked'], typeId);
-    applyDieColor(preview, dt?.color || DEFAULT_DICE_COLOR, dt?.special);
+    applyDieColor(preview, (dt && dt.color) || DEFAULT_DICE_COLOR, !!(dt && dt.special));
     slot.appendChild(preview);
     const nameTag = document.createElement('span');
     nameTag.className = 'slot-name';
-    nameTag.textContent = typeId !== 'normal' ? dt?.name || '' : '';
-    slot.title = dt?.name || '';
+    nameTag.textContent = typeId !== 'normal' ? (dt && dt.name) || '' : '';
+    slot.title = (dt && dt.name) || '';
     slot.appendChild(nameTag);
     slot.addEventListener('click', () => openDicePicker(store, i));
     slotsEl.appendChild(slot);
@@ -251,8 +252,9 @@ function openDicePicker(store, slotIdx) {
   catalog.innerHTML = '';
 
   const loadout = store.getLoadout(mode);
-  const currentSpecials = loadout.filter((id) => DICE_TYPES_MAP[id]?.special).length;
-  const currentSlotIsSpecial = DICE_TYPES_MAP[loadout[slotIdx]]?.special;
+  const currentSpecials = loadout.filter((id) => DICE_TYPES_MAP[id] && DICE_TYPES_MAP[id].special).length;
+  const slotType = DICE_TYPES_MAP[loadout[slotIdx]];
+  const currentSlotIsSpecial = slotType && slotType.special;
 
   const cheating = allowSpecial ? DICE_TYPES.filter((d) => d.special) : [];
   const cosmetic = DICE_TYPES.filter((d) => !d.special);
@@ -378,11 +380,11 @@ function renderTurnIndicator(state, store) {
   const modeCfg = GAME_MODES[state.gameMode] || GAME_MODES[DEFAULT_GAME_MODE];
   const modeTag = ` · ${modeCfg.name}`;
   if (isMine) {
-    const hint = state.turn?.awaitingFirstRoll ? '  (Space = бросить)' : '';
+    const hint = state.turn && state.turn.awaitingFirstRoll ? '  (Space = бросить)' : '';
     textEl.textContent = `Ваш ход${modeTag}${hint}`;
   } else {
     const oppName = nameOf(state, state.currentPlayerId);
-    const hint = state.turn?.diceOnTable?.length ? '  (нажмите на кость — узнаете о ней)' : '';
+    const hint = state.turn && state.turn.diceOnTable && state.turn.diceOnTable.length ? '  (нажмите на кость — узнаете о ней)' : '';
     textEl.textContent = `Ход: ${oppName}${modeTag}${hint}`;
   }
 }
@@ -519,7 +521,7 @@ function renderDice(state, store) {
     const me = state.players.find((p) => p.id === store.myPlayerId);
     const hint = document.createElement('div');
     hint.className = 'badge-target-hint';
-    hint.textContent = `Выберите кость — ${BADGES_MAP[me?.badge]?.name || 'бляха'}. Esc — отмена.`;
+    hint.textContent = `Выберите кость — ${(BADGES_MAP[me && me.badge] || { name: 'бляха' }).name}. Esc — отмена.`;
     area.appendChild(hint);
   }
   const fx = store.badgeFx && store.badgeFx.until > Date.now() ? store.badgeFx : null;
@@ -547,12 +549,12 @@ function renderDice(state, store) {
     if (!isMine || blocked || store.rolling) classes.push('disabled');
     if (store.rolling) classes.push('rolling');
     if (targeting) classes.push('badge-target');
-    if (fx?.diceIndex === i) classes.push('badge-triggered');
+    if (fx && fx.diceIndex === i) classes.push('badge-triggered');
     const typeId = diceTypeIds[i] || 'normal';
     const el = dieElement(displayV, classes, typeId);
     const diceType = DICE_TYPES_MAP[typeId];
-    applyDieColor(el, diceType?.color || DEFAULT_DICE_COLOR, diceType?.special);
-    if (diceType?.special) el.title = diceType.name;
+    applyDieColor(el, (diceType && diceType.color) || DEFAULT_DICE_COLOR, !!(diceType && diceType.special));
+    if (diceType && diceType.special) el.title = diceType.name;
     el.dataset.idx = String(i);
 
     const s = area._scatterSeeds[i];
@@ -567,7 +569,7 @@ function renderDice(state, store) {
     }
 
     if (targeting) {
-      el.addEventListener('click', () => store.onBadgeTarget?.(i));
+      el.addEventListener('click', () => store.onBadgeTarget && store.onBadgeTarget(i));
     } else if (isMine && !blocked && !store.rolling) {
       el.addEventListener('click', () => store.toggleSelection(i));
     } else if (!isMine && !store.rolling) {
@@ -580,8 +582,8 @@ function renderDice(state, store) {
 function renderLockedTray(state, store) {
   const tray = document.getElementById('locked-tray');
   tray.innerHTML = '';
-  const locked = state.turn?.lockedDice || [];
-  const dice = state.turn?.diceOnTable || [];
+  const locked = (state.turn && state.turn.lockedDice) || [];
+  const dice = (state.turn && state.turn.diceOnTable) || [];
   const isMine = store.isMyTurn();
   const oppIndices = !isMine ? [...store.opponentSelection] : [];
   const oppValues = oppIndices
@@ -593,8 +595,8 @@ function renderLockedTray(state, store) {
     return;
   }
   tray.classList.remove('empty');
-  const lockedTypeIds = state.turn?.lockedDiceTypeIds || [];
-  const diceTypeIds = state.turn?.diceTypeIds || [];
+  const lockedTypeIds = (state.turn && state.turn.lockedDiceTypeIds) || [];
+  const diceTypeIds = (state.turn && state.turn.diceTypeIds) || [];
 
   if (locked.length > 0) {
     const label = document.createElement('span');
@@ -605,7 +607,7 @@ function renderLockedTray(state, store) {
       const typeId = lockedTypeIds[i] || 'normal';
       const el = dieElement(locked[i], ['locked'], typeId);
       const dt = DICE_TYPES_MAP[typeId];
-      applyDieColor(el, dt?.color || DEFAULT_DICE_COLOR, dt?.special);
+      applyDieColor(el, (dt && dt.color) || DEFAULT_DICE_COLOR, !!(dt && dt.special));
       makeInspectable(el, state, store, typeId, state.currentPlayerId, `locked:${i}:${typeId}`);
       tray.appendChild(el);
     }
@@ -622,7 +624,7 @@ function renderLockedTray(state, store) {
       const typeId = diceTypeIds[oppIndices[j]] || 'normal';
       const el = dieElement(v, ['locked', 'tentative'], typeId);
       const dt2 = DICE_TYPES_MAP[typeId];
-      applyDieColor(el, dt2?.color || DEFAULT_DICE_COLOR, dt2?.special);
+      applyDieColor(el, (dt2 && dt2.color) || DEFAULT_DICE_COLOR, !!(dt2 && dt2.special));
       makeInspectable(el, state, store, typeId, state.currentPlayerId, `tentative:${j}:${typeId}`);
       tray.appendChild(el);
     }
@@ -714,14 +716,14 @@ function describeMood(mood) {
 // Score a held set as the server will: badge combos for the current player, ×2 if doubling is armed.
 function scoreForCurrent(state, values) {
   const player = state.players.find((p) => p.id === state.currentPlayerId);
-  const r = player?.badge ? scoreWithBadge(values, player.badge) : scoreSelection(values);
+  const r = player && player.badge ? scoreWithBadge(values, player.badge) : scoreSelection(values);
   if (!r.valid) return 0;
-  return state.turn?.doubleArmed ? r.score * 2 : r.score;
+  return state.turn && state.turn.doubleArmed ? r.score * 2 : r.score;
 }
 
 function computeSelectionScore(state, store) {
   if (!store.isMyTurn()) return 0;
-  const dice = state.turn?.diceOnTable || [];
+  const dice = (state.turn && state.turn.diceOnTable) || [];
   const sel = store.getSelectionArray();
   if (sel.length === 0) return 0;
   const values = sel.map((i) => dice[i]).filter((v) => v !== undefined);
@@ -731,7 +733,7 @@ function computeSelectionScore(state, store) {
 
 function computeOpponentSelectionScore(state, store) {
   if (store.isMyTurn()) return 0;
-  const dice = state.turn?.diceOnTable || [];
+  const dice = (state.turn && state.turn.diceOnTable) || [];
   const indices = [...store.opponentSelection];
   if (indices.length === 0) return 0;
   const values = indices.map((i) => dice[i]).filter((v) => v !== undefined);
@@ -751,7 +753,8 @@ export function showOverlay(text, kind = 'info', durationMs = 1800) {
 }
 
 function nameOf(state, playerId) {
-  return state.players.find((p) => p.id === playerId)?.name || '?';
+  const p = state.players.find((pl) => pl.id === playerId);
+  return (p && p.name) || '?';
 }
 
 function formatHistory(h, state) {

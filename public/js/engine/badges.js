@@ -101,7 +101,7 @@ function bestScore(values, combos) {
 }
 
 export function scoreWithBadge(values, badgeId) {
-  const combos = BADGES_MAP[badgeId]?.combos;
+  const combos = BADGES_MAP[badgeId] && BADGES_MAP[badgeId].combos;
   if (!combos) return scoreSelection(values);
   if (!Array.isArray(values) || values.length === 0) return { score: 0, valid: false, breakdown: [] };
   const score = bestScore(values, combos);
@@ -110,7 +110,7 @@ export function scoreWithBadge(values, badgeId) {
 
 export function canHoldWithBadge(selection, roll, badgeId) {
   const base = canHold(selection, roll);
-  if (!BADGES_MAP[badgeId]?.combos) return base;
+  if (!BADGES_MAP[badgeId] || !BADGES_MAP[badgeId].combos) return base;
   if (!base.ok && base.reason !== 'not_scoring') return base;
   const r = scoreWithBadge(selection.map((i) => roll[i]), badgeId);
   if (!r.valid) return { ok: false, reason: 'not_scoring' };

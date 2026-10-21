@@ -20,7 +20,7 @@ export class Net {
     this.ws.addEventListener('open', () => {
       this.backoff = 500;
       this.opened = true;
-      this.handlers.onOpen?.();
+      this._call('onOpen');
     });
 
     this.ws.addEventListener('message', (e) => {
@@ -29,19 +29,19 @@ export class Net {
       if (!msg || typeof msg.type !== 'string') return;
       switch (msg.type) {
         case 'state':
-          this.handlers.onState?.(msg.payload);
+          this._call('onState', msg.payload);
           break;
         case 'event':
-          this.handlers.onEvent?.(msg.payload);
+          this._call('onEvent', msg.payload);
           break;
         case 'error':
-          this.handlers.onError?.(msg.payload);
+          this._call('onError', msg.payload);
           break;
         case 'ping':
           this.send({ type: 'pong' });
           break;
         case 'lobby_info':
-          this.handlers.onLobbyInfo?.(msg.payload);
+          this._call('onLobbyInfo', msg.payload);
           break;
       }
     });
@@ -49,13 +49,18 @@ export class Net {
     this.ws.addEventListener('close', () => {
       const wasOpen = this.opened;
       this.opened = false;
-      this.handlers.onClose?.(wasOpen);
+      this._call('onClose', wasOpen);
       this._retry();
     });
 
     this.ws.addEventListener('error', () => {
       try { this.ws.close(); } catch {}
     });
+  }
+
+  _call(name, arg) {
+    const fn = this.handlers[name];
+    if (fn) fn(arg);
   }
 
   _retry() {
@@ -65,7 +70,7 @@ export class Net {
   }
 
   send(msg) {
-    if (this.ws?.readyState === WebSocket.OPEN) {
+    if (!!this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(msg));
       return true;
     }
@@ -74,16 +79,16 @@ export class Net {
 
   close() {
     this.alive = false;
-    try { this.ws?.close(); } catch {}
+    try { if (this.ws) this.ws.close(); } catch {}
   }
 
   reconnect() {
-    try { this.ws?.close(); } catch {}
+    try { if (this.ws) this.ws.close(); } catch {}
     this.backoff = 500;
     this.connect();
   }
 
   isOpen() {
-    return this.ws?.readyState === WebSocket.OPEN;
+    return !!this.ws && this.ws.readyState === WebSocket.OPEN;
   }
 }
