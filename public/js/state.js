@@ -1,7 +1,9 @@
 import { DEFAULT_LOADOUT, DICE_TYPES_MAP, validateLoadoutArray } from './engine/dice-types.js';
 import { GAME_MODES, GAME_MODE_IDS, DEFAULT_GAME_MODE } from './engine/rules.js';
+import { DEFAULT_BADGE, isValidBadge } from './engine/badges.js';
 
 const MODE_STORAGE_KEY = 'kcd2_selected_mode';
+const BADGE_STORAGE_KEY = 'kcd2_badge';
 const LEGACY_LOADOUT_KEY = 'kcd2_loadout';
 const loadoutKey = (mode) => `kcd2_loadout_${mode}`;
 
@@ -27,6 +29,40 @@ export class Store {
     this.listeners = [];
     this.loadouts = this._loadLoadouts();
     this._selectedMode = this._loadSelectedMode();
+    this.myBadge = this._loadBadge();
+    this.badgeTargeting = false;
+    this.badgePulse = null;
+    this.badgeFx = null;
+    this.onBadgeTarget = null;
+  }
+
+  _loadBadge() {
+    try {
+      const saved = localStorage.getItem(BADGE_STORAGE_KEY);
+      if (isValidBadge(saved)) return saved;
+    } catch {}
+    return DEFAULT_BADGE;
+  }
+
+  setBadge(id) {
+    if (!isValidBadge(id)) return;
+    this.myBadge = id;
+    try { localStorage.setItem(BADGE_STORAGE_KEY, id); } catch {}
+    this._notify();
+  }
+
+  setBadgeTargeting(on) {
+    this.badgeTargeting = on;
+    this._notify();
+  }
+
+  // Short-lived visual effects after a badge fires: pulse the owner's medallion, mark the touched die.
+  flashBadge(playerId, diceIndex = null, ms = 900) {
+    const until = Date.now() + ms;
+    this.badgePulse = { playerId, until };
+    this.badgeFx = Number.isInteger(diceIndex) ? { diceIndex, until } : null;
+    this._notify();
+    setTimeout(() => this._notify(), ms + 20);
   }
 
   // Each mode keeps its own set of dice so switching modes never loses a pocket loadout.
@@ -87,6 +123,7 @@ export class Store {
     if (prevDice !== newDice || prevPlayer !== newPlayer) {
       this.selection.clear();
       this.opponentSelection.clear();
+      this.badgeTargeting = false;
     }
     if (prevPlayer !== newPlayer || snapshot?.phase !== 'playing') {
       this.rolling = false;

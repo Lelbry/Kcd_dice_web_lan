@@ -123,3 +123,43 @@ test('classic mode lets you restyle dice with cosmetic dice only', async ({ page
   expect(otherTypes.every((t) => !['loaded', 'pie', 'painted'].includes(t))).toBe(true);
   expect(errors).toEqual([]);
 });
+
+test('badge mode: pick a badge, use it on a die, read about it in help', async ({ page }) => {
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+
+  await openLobbyWithBot(page, 'badge');
+  await expect(page.locator('#badge-select')).toBeVisible();
+  await page.locator('#badge-slot').click();
+  await expect(page.locator('#badge-catalog .badge-card')).toHaveCount(8);
+  await page.locator('#badge-catalog .badge-card[data-badge="transmutation"]').click();
+  await expect(page.locator('#badge-slot')).toContainText('Бляха превращения');
+
+  await page.locator('#start-btn').click();
+  await expect(page.locator('#badge-bar')).toBeVisible();
+  await expect(page.locator('.badge-chip.mine')).toContainText('Бляха превращения');
+  await expect(page.locator('.badge-chip.theirs .badge-medallion')).toBeVisible();
+
+  const roll = page.locator('#actions-panel [data-action="roll"]');
+  const useBtn = page.locator('.badge-chip.mine .badge-activate');
+  await expect.poll(async () => {
+    if (await roll.isVisible() && await roll.isEnabled()) await roll.click();
+    return useBtn.isEnabled();
+  }, { timeout: 90_000, intervals: [500] }).toBe(true);
+
+  await page.keyboard.press('KeyB');
+  const targets = page.locator('#dice-area .die.badge-target');
+  await expect(targets.first()).toBeVisible();
+  await expect(page.locator('.badge-target-hint')).toBeVisible();
+  await targets.first().click();
+
+  await expect(page.locator('.badge-chip.mine .charge.full')).toHaveCount(0);
+  await expect(page.locator('#dice-area .die.badge-target')).toHaveCount(0);
+  await page.locator('#log-toggle').click();
+  await expect(page.locator('#log-panel')).toContainText('Бляха превращения — кость');
+
+  await page.keyboard.press('KeyT');
+  await page.locator('[data-help-tab="badges"]').click();
+  await expect(page.locator('#help-badges .help-badge')).toHaveCount(8);
+  expect(errors).toEqual([]);
+});

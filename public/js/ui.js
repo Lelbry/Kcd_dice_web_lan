@@ -3,6 +3,8 @@ import { TRIPLE_BASE, multiplierForCount, GAME_MODES, DEFAULT_GAME_MODE } from '
 import { computeDieGradient, adjustLightness, hexToHsl } from './color.js';
 import { DICE_TYPES, DICE_TYPES_MAP, MAX_SPECIAL_DICE, MAX_SAME_SPECIAL, modeAllowsSpecialDice } from './engine/dice-types.js';
 import { PIP_GLYPHS, FACE_GLYPHS } from './glyphs.js';
+import { scoreWithBadge, BADGES_MAP } from './engine/badges.js';
+import { renderBadgeLobby, renderBadgeBar, renderBadgesReveal, badgeHistoryText } from './badges.js';
 
 const DEFAULT_DICE_COLOR = '#f4e8c1';
 
@@ -176,6 +178,7 @@ function renderLobby(state, store) {
   startBtn.disabled = state.players.length < 2 || !state.players.every((p) => p.connected);
 
   renderLoadout(store);
+  renderBadgeLobby(store, currentMode);
 }
 
 const LOADOUT_TEXTS = {
@@ -305,6 +308,7 @@ function diceCard(store, dt, loadout, slotIdx, currentSpecials, currentSlotIsSpe
 
 function renderGame(state, store) {
   renderTurnIndicator(state, store);
+  renderBadgeBar(state, store);
   renderScorePanel(state, store);
   renderDice(state, store);
   renderLockedTray(state, store);
@@ -452,6 +456,15 @@ function renderDice(state, store) {
   }
 
   const diceTypeIds = turn.diceTypeIds || [];
+  const targeting = isMine && store.badgeTargeting && !blocked && !store.rolling;
+  if (targeting) {
+    const me = state.players.find((p) => p.id === store.myPlayerId);
+    const hint = document.createElement('div');
+    hint.className = 'badge-target-hint';
+    hint.textContent = `Выберите кость — ${BADGES_MAP[me?.badge]?.name || 'бляха'}. Esc — отмена.`;
+    area.appendChild(hint);
+  }
+  const fx = store.badgeFx && store.badgeFx.until > Date.now() ? store.badgeFx : null;
 
   const areaRect = area.getBoundingClientRect();
   const isMobile = window.innerWidth <= 600;
@@ -475,6 +488,8 @@ function renderDice(state, store) {
     if (opponentSelected) classes.push('opponent-selected');
     if (!isMine || blocked || store.rolling) classes.push('disabled');
     if (store.rolling) classes.push('rolling');
+    if (targeting) classes.push('badge-target');
+    if (fx?.diceIndex === i) classes.push('badge-triggered');
     const typeId = diceTypeIds[i] || 'normal';
     const el = dieElement(displayV, classes, typeId);
     const diceType = DICE_TYPES_MAP[typeId];
@@ -493,7 +508,9 @@ function renderDice(state, store) {
       el.style.transform = `rotate(${s.rot}deg)`;
     }
 
-    if (isMine && !blocked && !store.rolling) {
+    if (targeting) {
+      el.addEventListener('click', () => store.onBadgeTarget?.(i));
+    } else if (isMine && !blocked && !store.rolling) {
       el.addEventListener('click', () => store.toggleSelection(i));
     }
     area.appendChild(el);
@@ -617,6 +634,7 @@ function renderFinished(state, store) {
       reveal.hidden = true;
     }
   }
+  renderBadgesReveal(state);
 }
 
 const MOOD_DESCRIPTIONS = {
@@ -631,6 +649,14 @@ function describeMood(mood) {
   return MOOD_DESCRIPTIONS[mood] || '';
 }
 
+// Score a held set as the server will: badge combos for the current player, ×2 if doubling is armed.
+function scoreForCurrent(state, values) {
+  const player = state.players.find((p) => p.id === state.currentPlayerId);
+  const r = player?.badge ? scoreWithBadge(values, player.badge) : scoreSelection(values);
+  if (!r.valid) return 0;
+  return state.turn?.doubleArmed ? r.score * 2 : r.score;
+}
+
 function computeSelectionScore(state, store) {
   if (!store.isMyTurn()) return 0;
   const dice = state.turn?.diceOnTable || [];
@@ -638,8 +664,7 @@ function computeSelectionScore(state, store) {
   if (sel.length === 0) return 0;
   const values = sel.map((i) => dice[i]).filter((v) => v !== undefined);
   if (values.length !== sel.length) return 0;
-  const r = scoreSelection(values);
-  return r.valid ? r.score : 0;
+  return scoreForCurrent(state, values);
 }
 
 function computeOpponentSelectionScore(state, store) {
@@ -649,8 +674,7 @@ function computeOpponentSelectionScore(state, store) {
   if (indices.length === 0) return 0;
   const values = indices.map((i) => dice[i]).filter((v) => v !== undefined);
   if (values.length !== indices.length) return 0;
-  const r = scoreSelection(values);
-  return r.valid ? r.score : 0;
+  return scoreForCurrent(state, values);
 }
 
 export function showOverlay(text, kind = 'info', durationMs = 1800) {
@@ -679,8 +703,16 @@ function formatHistory(h, state) {
         : `[${ts}] Игра началась (цель ${h.targetScore})`;
     }
     case 'rolled': return `[${ts}] ${who}: бросок [${h.dice.join(', ')}]`;
-    case 'held': return `[${ts}] ${who}: отложил [${h.dice.join(', ')}] = ${h.score} (раунд: ${h.roundScore})`;
-    case 'farkle': return `[${ts}] ${who}: ЗОНК! −${h.lostScore}`;
+    case 'held': return `[${ts}] ${who}: отложил [${h.dice.join(', ')}] = ${h.score}${h.doubled ? ' (×2)' : ''} (раунд: ${h.roundScore})`;
+    case 'farkle': return h.rescued
+      ? `[${ts}] ${who}: ЗОНК… но бляха спасла`
+      : `[${ts}] ${who}: ЗОНК! −${h.lostScore}`;
+    case 'badge_chosen':
+    case 'badge_activated':
+    case 'badge_blocked': {
+      const text = badgeHistoryText(h, (id) => nameOf(state, id));
+      return text ? `[${ts}] ${text}` : `[${ts}] ${h.type}`;
+    }
     case 'hot_dice': return `[${ts}] ${who}: HOT DICE! Все 6 заново`;
     case 'banked': return `[${ts}] ${who}: банк +${h.score} → ${h.total}`;
     case 'surrendered': return `[${ts}] ${who}: сдался`;
