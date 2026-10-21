@@ -812,6 +812,7 @@ button.ghost:hover { color: var(--cream); border-color: var(--gold); }
 .loadout-hint {
   color: var(--cream-dim);
   font-size: 11px;
+  line-height: 1.4;
   text-align: center;
   margin-top: 8px;
 }
@@ -829,6 +830,16 @@ button.ghost:hover { color: var(--cream); border-color: var(--gold); }
   gap: 8px;
   margin: 12px 0;
 }
+.catalog-group {
+  color: var(--gold);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin-top: 8px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid rgba(217,179,90,0.25);
+}
+.catalog-group:first-child { margin-top: 0; }
 .dice-type-card {
   display: flex;
   align-items: flex-start;

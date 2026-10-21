@@ -1,7 +1,7 @@
 import { scoreSelection } from './engine/scoring.js';
 import { TRIPLE_BASE, multiplierForCount, GAME_MODES, DEFAULT_GAME_MODE } from './engine/rules.js';
 import { computeDieGradient, adjustLightness, hexToHsl } from './color.js';
-import { DICE_TYPES, DICE_TYPES_MAP, MAX_SPECIAL_DICE, MAX_SAME_SPECIAL } from './engine/dice-types.js';
+import { DICE_TYPES, DICE_TYPES_MAP, MAX_SPECIAL_DICE, MAX_SAME_SPECIAL, modeAllowsSpecialDice } from './engine/dice-types.js';
 import { PIP_GLYPHS, FACE_GLYPHS } from './glyphs.js';
 
 const DEFAULT_DICE_COLOR = '#f4e8c1';
@@ -159,8 +159,6 @@ function renderLobby(state, store) {
       if (!radio) return;
       store.setSelectedMode(radio.value);
       populateTargets(radio.value);
-      const loadoutEl = document.getElementById('dice-loadout');
-      if (loadoutEl) loadoutEl.hidden = radio.value !== 'pocket';
     });
   }
 
@@ -169,14 +167,40 @@ function renderLobby(state, store) {
   if (modeRadio && !modeRadio.checked) modeRadio.checked = true;
 
   const loadoutEl = document.getElementById('dice-loadout');
-  if (loadoutEl) loadoutEl.hidden = currentMode !== 'pocket';
+  if (loadoutEl) loadoutEl.hidden = false;
+  renderLoadoutTexts(currentMode);
 
   populateTargets(currentMode);
 
   const startBtn = document.getElementById('start-btn');
   startBtn.disabled = state.players.length < 2 || !state.players.every((p) => p.connected);
 
-  if (currentMode === 'pocket') renderLoadout(store);
+  renderLoadout(store);
+}
+
+const LOADOUT_TEXTS = {
+  cosmetic: {
+    label: 'Внешний вид костей:',
+    hint: 'Нажмите на кость, чтобы сменить её облик — пирог, зуб, кость художника… Шулерских здесь нет: все кости катятся честно.',
+    picker: 'Внешний вид кости',
+  },
+  cheating: {
+    label: 'Мои кости:',
+    hint: `До ${MAX_SPECIAL_DICE} шулерских костей, каждая — в единственном экземпляре. Кости «только для вида» — без ограничений.`,
+    picker: 'Выбрать кость',
+  },
+};
+
+function loadoutTexts(mode) {
+  return modeAllowsSpecialDice(mode) ? LOADOUT_TEXTS.cheating : LOADOUT_TEXTS.cosmetic;
+}
+
+function renderLoadoutTexts(mode) {
+  const t = loadoutTexts(mode);
+  const label = document.getElementById('loadout-label');
+  const hint = document.getElementById('loadout-hint');
+  if (label) label.textContent = t.label;
+  if (hint) hint.textContent = t.hint;
 }
 
 let _pickerSlotIdx = 0;
@@ -196,7 +220,7 @@ function renderLoadout(store) {
     slot.appendChild(preview);
     const nameTag = document.createElement('span');
     nameTag.className = 'slot-name';
-    nameTag.textContent = dt?.special ? dt.name : '';
+    nameTag.textContent = typeId !== 'normal' ? dt?.name || '' : '';
     slot.title = dt?.name || '';
     slot.appendChild(nameTag);
     slot.addEventListener('click', () => openDicePicker(store, i));
@@ -204,58 +228,79 @@ function renderLoadout(store) {
   }
 }
 
+function pickerGroup(catalog, title) {
+  const h = document.createElement('div');
+  h.className = 'catalog-group';
+  h.textContent = title;
+  catalog.appendChild(h);
+}
+
 function openDicePicker(store, slotIdx) {
   _pickerSlotIdx = slotIdx;
+  const mode = store._selectedMode || DEFAULT_GAME_MODE;
+  const allowSpecial = modeAllowsSpecialDice(mode);
   const modal = document.getElementById('dice-picker-modal');
   const catalog = document.getElementById('dice-catalog');
+  const title = document.getElementById('dice-picker-title');
+  if (title) title.textContent = loadoutTexts(mode).picker;
   modal.hidden = false;
   catalog.innerHTML = '';
 
-  const loadout = store.getLoadout();
+  const loadout = store.getLoadout(mode);
   const currentSpecials = loadout.filter((id) => DICE_TYPES_MAP[id]?.special).length;
   const currentSlotIsSpecial = DICE_TYPES_MAP[loadout[slotIdx]]?.special;
 
-  for (const dt of DICE_TYPES) {
-    const card = document.createElement('div');
-    const isActive = loadout[slotIdx] === dt.id;
-    const atSpecialLimit = dt.special && !currentSlotIsSpecial && currentSpecials >= MAX_SPECIAL_DICE;
-    const sameCount = loadout.filter((id) => id === dt.id).length;
-    const atDupeLimit = dt.special && !isActive && sameCount >= MAX_SAME_SPECIAL;
-    const atLimit = atSpecialLimit || atDupeLimit;
-    card.className = 'dice-type-card' + (isActive ? ' active' : '') + (atLimit ? ' disabled' : '');
+  const cheating = allowSpecial ? DICE_TYPES.filter((d) => d.special) : [];
+  const cosmetic = DICE_TYPES.filter((d) => !d.special);
+  const groups = allowSpecial
+    ? [['Шулерские кости', cheating], ['Только внешний вид — играют как обычные', cosmetic]]
+    : [[null, cosmetic]];
 
-    const preview = dieElement(previewFace(dt), ['locked'], dt.id);
-    applyDieColor(preview, dt.color, dt.special);
-    card.appendChild(preview);
-
-    const info = document.createElement('div');
-    info.className = 'card-info';
-    const stockLabel = dt.special ? ` <span class="card-stock">в наличии: ${MAX_SAME_SPECIAL - sameCount + (isActive ? 1 : 0)}</span>` : '';
-    info.innerHTML = `<div class="card-name">${escapeHtml(dt.name)}${stockLabel}</div><div class="card-desc">${escapeHtml(dt.description)}</div>`;
-    card.appendChild(info);
-
-    const bars = document.createElement('div');
-    bars.className = 'prob-bars';
-    const total = dt.weights.reduce((s, w) => s + w, 0);
-    for (let f = 0; f < 6; f++) {
-      const pct = total > 0 ? Math.round((dt.weights[f] / total) * 100) : 0;
-      const bar = document.createElement('div');
-      bar.className = 'prob-bar';
-      bar.innerHTML = `<span class="bar-face">${f + 1}</span><div class="bar-track"><div class="bar-fill" style="width:${pct}%"></div></div><span class="bar-pct">${pct}%</span>`;
-      bars.appendChild(bar);
-    }
-    card.appendChild(bars);
-
-    if (!atLimit) {
-      card.addEventListener('click', () => {
-        if (store.setLoadoutSlot(_pickerSlotIdx, dt.id)) {
-          modal.hidden = true;
-          store._notify();
-        }
-      });
-    }
-    catalog.appendChild(card);
+  for (const [groupTitle, dice] of groups) {
+    if (groupTitle) pickerGroup(catalog, groupTitle);
+    for (const dt of dice) catalog.appendChild(diceCard(store, dt, loadout, slotIdx, currentSpecials, currentSlotIsSpecial, modal));
   }
+}
+
+function diceCard(store, dt, loadout, slotIdx, currentSpecials, currentSlotIsSpecial, modal) {
+  const card = document.createElement('div');
+  const isActive = loadout[slotIdx] === dt.id;
+  const atSpecialLimit = dt.special && !currentSlotIsSpecial && currentSpecials >= MAX_SPECIAL_DICE;
+  const sameCount = loadout.filter((id) => id === dt.id).length;
+  const atDupeLimit = dt.special && !isActive && sameCount >= MAX_SAME_SPECIAL;
+  const atLimit = atSpecialLimit || atDupeLimit;
+  card.className = 'dice-type-card' + (isActive ? ' active' : '') + (atLimit ? ' disabled' : '');
+  card.dataset.type = dt.id;
+
+  const preview = dieElement(previewFace(dt), ['locked'], dt.id);
+  applyDieColor(preview, dt.color, dt.special);
+  card.appendChild(preview);
+
+  const info = document.createElement('div');
+  info.className = 'card-info';
+  const left = MAX_SAME_SPECIAL - sameCount + (isActive ? 1 : 0);
+  const stockLabel = dt.special ? ` <span class="card-stock">в наличии: ${left}</span>` : '';
+  info.innerHTML = `<div class="card-name">${escapeHtml(dt.name)}${stockLabel}</div><div class="card-desc">${escapeHtml(dt.description)}</div>`;
+  card.appendChild(info);
+
+  const bars = document.createElement('div');
+  bars.className = 'prob-bars';
+  const total = dt.weights.reduce((s, w) => s + w, 0);
+  for (let f = 0; f < 6; f++) {
+    const pct = total > 0 ? Math.round((dt.weights[f] / total) * 100) : 0;
+    const bar = document.createElement('div');
+    bar.className = 'prob-bar';
+    bar.innerHTML = `<span class="bar-face">${f + 1}</span><div class="bar-track"><div class="bar-fill" style="width:${pct}%"></div></div><span class="bar-pct">${pct}%</span>`;
+    bars.appendChild(bar);
+  }
+  card.appendChild(bars);
+
+  if (!atLimit) {
+    card.addEventListener('click', () => {
+      if (store.setLoadoutSlot(_pickerSlotIdx, dt.id)) modal.hidden = true;
+    });
+  }
+  return card;
 }
 
 function renderGame(state, store) {

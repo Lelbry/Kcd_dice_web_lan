@@ -71,9 +71,9 @@
           </div>
         </div>
         <div class="dice-loadout" id="dice-loadout" hidden>
-          <div class="loadout-label">Мои кости:</div>
+          <div class="loadout-label" id="loadout-label">Мои кости:</div>
           <div class="loadout-slots" id="loadout-slots"></div>
-          <div class="loadout-hint">Можно выбрать до 3 специальных костей</div>
+          <div class="loadout-hint" id="loadout-hint"></div>
         </div>
         <div class="lobby-players" id="lobby-players"></div>
         <div class="form-row">
@@ -184,7 +184,7 @@
 
     <div class="modal" id="dice-picker-modal" hidden>
       <div class="modal-inner picker-inner">
-        <h2>Выбрать кость</h2>
+        <h2 id="dice-picker-title">Выбрать кость</h2>
         <div class="dice-catalog" id="dice-catalog"></div>
         <button data-close-modal class="primary">Закрыть</button>
       </div>

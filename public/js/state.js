@@ -1,7 +1,18 @@
-import { DEFAULT_LOADOUT, MAX_SPECIAL_DICE, DICE_TYPES_MAP } from './engine/dice-types.js';
-import { GAME_MODES, DEFAULT_GAME_MODE } from './engine/rules.js';
+import { DEFAULT_LOADOUT, DICE_TYPES_MAP, validateLoadoutArray } from './engine/dice-types.js';
+import { GAME_MODES, GAME_MODE_IDS, DEFAULT_GAME_MODE } from './engine/rules.js';
 
 const MODE_STORAGE_KEY = 'kcd2_selected_mode';
+const LEGACY_LOADOUT_KEY = 'kcd2_loadout';
+const loadoutKey = (mode) => `kcd2_loadout_${mode}`;
+
+function readJson(key) {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
 
 export class Store {
   constructor() {
@@ -14,26 +25,26 @@ export class Store {
     this.rolling = false;
     this._rollingStartedAt = 0;
     this.listeners = [];
-    this.myLoadout = [...DEFAULT_LOADOUT];
-    this._loadLoadout();
+    this.loadouts = this._loadLoadouts();
     this._selectedMode = this._loadSelectedMode();
   }
 
-  _loadLoadout() {
-    try {
-      const raw = localStorage.getItem('kcd2_loadout');
-      if (raw) {
-        const arr = JSON.parse(raw);
-        if (Array.isArray(arr) && arr.length === 6 && arr.every((id) => DICE_TYPES_MAP[id])) {
-          const specials = arr.filter((id) => DICE_TYPES_MAP[id]?.special).length;
-          if (specials <= MAX_SPECIAL_DICE) this.myLoadout = arr;
-        }
+  // Each mode keeps its own set of dice so switching modes never loses a pocket loadout.
+  _loadLoadouts() {
+    const out = {};
+    for (const mode of GAME_MODE_IDS) {
+      const arr = readJson(loadoutKey(mode));
+      out[mode] = validateLoadoutArray(arr, mode) ? arr : [...DEFAULT_LOADOUT];
+    }
+    const legacy = readJson(LEGACY_LOADOUT_KEY);
+    if (legacy && readJson(loadoutKey('pocket')) === null && readJson(loadoutKey('classic')) === null) {
+      const target = legacy.some?.((id) => DICE_TYPES_MAP[id]?.special) ? 'pocket' : 'classic';
+      if (validateLoadoutArray(legacy, target)) {
+        out[target] = legacy;
+        try { localStorage.setItem(loadoutKey(target), JSON.stringify(legacy)); } catch {}
       }
-    } catch {}
-  }
-
-  _saveLoadout() {
-    try { localStorage.setItem('kcd2_loadout', JSON.stringify(this.myLoadout)); } catch {}
+    }
+    return out;
   }
 
   _loadSelectedMode() {
@@ -41,9 +52,7 @@ export class Store {
       const saved = localStorage.getItem(MODE_STORAGE_KEY);
       if (saved && GAME_MODES[saved]) return saved;
     } catch {}
-    // Если loadout содержит специальные кости — явный сигнал, что игрок хочет pocket.
-    const hasSpecial = this.myLoadout.some((id) => DICE_TYPES_MAP[id]?.special);
-    return hasSpecial ? 'pocket' : DEFAULT_GAME_MODE;
+    return DEFAULT_GAME_MODE;
   }
 
   setSelectedMode(mode) {
@@ -124,21 +133,19 @@ export class Store {
     this._notify();
   }
 
-  setLoadoutSlot(slotIdx, diceTypeId) {
+  setLoadoutSlot(slotIdx, diceTypeId, mode = this._selectedMode) {
     if (slotIdx < 0 || slotIdx >= 6) return false;
-    if (!DICE_TYPES_MAP[diceTypeId]) return false;
-    const next = [...this.myLoadout];
+    const next = this.getLoadout(mode);
     next[slotIdx] = diceTypeId;
-    const specials = next.filter((id) => DICE_TYPES_MAP[id]?.special).length;
-    if (specials > MAX_SPECIAL_DICE) return false;
-    this.myLoadout = next;
-    this._saveLoadout();
+    if (!validateLoadoutArray(next, mode)) return false;
+    this.loadouts[mode] = next;
+    try { localStorage.setItem(loadoutKey(mode), JSON.stringify(next)); } catch {}
     this._notify();
     return true;
   }
 
-  getLoadout() {
-    return [...this.myLoadout];
+  getLoadout(mode = this._selectedMode) {
+    return [...(this.loadouts[mode] || DEFAULT_LOADOUT)];
   }
 
   isMyTurn() {

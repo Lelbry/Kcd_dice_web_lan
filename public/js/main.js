@@ -83,7 +83,7 @@ const net = new Net(wsUrl, {
     history.replaceState(null, '', url.toString());
     showLobbyWaiting(payload.code);
     net.send({ type: 'hello', payload: { name, clientId } });
-    net.send({ type: 'set_loadout', payload: { loadout: store.getLoadout() } });
+    sendLoadout();
   },
 });
 
@@ -195,14 +195,17 @@ function handleEvent(ev) {
 
 store.subscribe(() => render(store, lobbyCode));
 
+function sendLoadout() {
+  const mode = store._selectedMode;
+  net.send({ type: 'set_loadout', payload: { loadout: store.getLoadout(mode), mode } });
+}
+
 let _prevLoadoutKey = '';
 store.subscribe(() => {
-  const key = store.myLoadout.join(',');
+  const key = `${store._selectedMode}:${store.getLoadout().join(',')}`;
   if (key === _prevLoadoutKey) return;
   _prevLoadoutKey = key;
-  if (lobbyJoined) {
-    net.send({ type: 'set_loadout', payload: { loadout: store.getLoadout() } });
-  }
+  if (lobbyJoined) sendLoadout();
 });
 
 let _prevSelKey = '';
