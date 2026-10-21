@@ -1,6 +1,6 @@
 {
   "name": "@lelbry/kcd2-dice",
-  "version": "2.10.0",
+  "version": "2.10.1",
   "description": "KCD2-style dice game in the browser, online multiplayer via lobby codes",
   "type": "module",
   "engines": {
