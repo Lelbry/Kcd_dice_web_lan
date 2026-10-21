@@ -169,6 +169,12 @@ function renderLobby(state, store) {
   const currentMode = store._selectedMode || DEFAULT_GAME_MODE;
   const modeRadio = modeSelector && modeSelector.querySelector(`input[value="${currentMode}"]`);
   if (modeRadio && !modeRadio.checked) modeRadio.checked = true;
+  if (modeSelector) {
+    modeSelector.querySelectorAll('.mode-option').forEach((opt) => {
+      const input = opt.querySelector('input');
+      opt.classList.toggle('checked', !!input && input.checked);
+    });
+  }
 
   const loadoutEl = document.getElementById('dice-loadout');
   if (loadoutEl) loadoutEl.hidden = false;

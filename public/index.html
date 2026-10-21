@@ -4,8 +4,8 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Кости — KCD2</title>
-  <link rel="stylesheet" href="/styles/main.css?v=2.10.4" />
-  <link rel="stylesheet" href="/styles/dice.css?v=2.10.4" />
+  <link rel="stylesheet" href="/styles/main.css?v=2.10.5" />
+  <link rel="stylesheet" href="/styles/dice.css?v=2.10.5" />
   <script>
     // If the game script fails to start (old browser, stale cache, blocked file), say so on screen:
     // phones have no console to look at.
@@ -25,8 +25,9 @@
           'или обновите браузер. Пришлите разработчику текст ниже:<pre></pre>' +
           '<div class="boot-error-actions"><button type="button" data-boot="copy">📋 Скопировать</button>' +
           '<button type="button" data-boot="reload">Обновить</button></div>';
+        var pre = box.querySelector('pre');
         var report = (errors.join('\n') || 'нет ошибок, скрипт не запустился') + '\n' + navigator.userAgent;
-        box.querySelector('pre').textContent = report;
+        pre.textContent = report + '\nпроверяю файлы игры…';
         box.querySelector('[data-boot="reload"]').onclick = function () { location.reload(); };
         var copyBtn = box.querySelector('[data-boot="copy"]');
         function copied(ok) { copyBtn.textContent = ok ? '✓ Скопировано' : 'Выделите текст и скопируйте'; }
@@ -53,6 +54,31 @@
           }
         };
         document.body.appendChild(box);
+
+        // A failed module import only names main.js. Load every module on its own to find the one that breaks.
+        // main.js is fetched but not imported: importing it would start a second copy of the game.
+        var MODULES = ['engine/rules', 'engine/scoring', 'engine/validate', 'engine/dice-types', 'engine/badges',
+          'color', 'glyphs', 'infocard', 'music', 'net', 'state', 'badges', 'ui', 'main'];
+        var dynImport = null;
+        try { dynImport = new Function('u', 'return import(u)'); } catch (e) {}
+        var found = [];
+        function probe(i) {
+          if (i >= MODULES.length || !window.fetch) {
+            report += '\n' + (found.length ? found.join('\n') : 'все файлы загружаются');
+            pre.textContent = report;
+            return;
+          }
+          var url = '/js/' + MODULES[i] + '.js';
+          fetch(url, { cache: 'no-store' }).then(function (res) {
+            if (!res.ok) found.push(url + ': HTTP ' + res.status);
+            else if (!/javascript/.test(res.headers.get('content-type') || '')) found.push(url + ': ' + res.headers.get('content-type'));
+            if (!dynImport || MODULES[i] === 'main') return null;
+            return dynImport(url).then(null, function (err) { found.push(url + ': ' + (err && err.message || err)); });
+          }, function (err) {
+            found.push(url + ': fetch ' + (err && err.message || err));
+          }).then(function () { probe(i + 1); });
+        }
+        probe(0);
       }, 10000);
     })();
   </script>
@@ -289,6 +315,6 @@
     <div id="reconnect-banner" hidden>Соединение прервано, переподключение…</div>
   </div>
 
-  <script type="module" src="/js/main.js?v=2.10.4"></script>
+  <script type="module" src="/js/main.js?v=2.10.5"></script>
 </body>
 </html>
