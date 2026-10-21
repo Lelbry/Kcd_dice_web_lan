@@ -1,6 +1,6 @@
 {
   "name": "@lelbry/kcd2-dice",
-  "version": "2.10.2",
+  "version": "2.10.3",
   "description": "KCD2-style dice game in the browser, online multiplayer via lobby codes",
   "type": "module",
   "engines": {
@@ -8,7 +8,7 @@
   },
   "scripts": {
     "start": "node server/index.js",
-    "test": "node --test tests/scoring.test.js tests/validate.test.js tests/bot.test.js tests/color.test.js tests/weights.test.js tests/balance.test.js tests/badges.test.js",
+    "test": "node --test tests/scoring.test.js tests/validate.test.js tests/bot.test.js tests/color.test.js tests/weights.test.js tests/balance.test.js tests/badges.test.js tests/compat.test.js",
     "test:e2e": "playwright test"
   },
   "dependencies": {

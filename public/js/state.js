@@ -6,6 +6,7 @@ const MODE_STORAGE_KEY = 'kcd2_selected_mode';
 const BADGE_STORAGE_KEY = 'kcd2_badge';
 const LEGACY_LOADOUT_KEY = 'kcd2_loadout';
 const loadoutKey = (mode) => `kcd2_loadout_${mode}`;
+const diceKey = (snap) => (snap && snap.turn && snap.turn.diceOnTable ? snap.turn.diceOnTable.join(',') : '');
 
 function readJson(key) {
   try {
@@ -74,7 +75,7 @@ export class Store {
     }
     const legacy = readJson(LEGACY_LOADOUT_KEY);
     if (legacy && readJson(loadoutKey('pocket')) === null && readJson(loadoutKey('classic')) === null) {
-      const target = legacy.some?.((id) => DICE_TYPES_MAP[id]?.special) ? 'pocket' : 'classic';
+      const target = Array.isArray(legacy) && legacy.some((id) => DICE_TYPES_MAP[id] && DICE_TYPES_MAP[id].special) ? 'pocket' : 'classic';
       if (validateLoadoutArray(legacy, target)) {
         out[target] = legacy;
         try { localStorage.setItem(loadoutKey(target), JSON.stringify(legacy)); } catch {}
@@ -116,16 +117,16 @@ export class Store {
   }
 
   setSnapshot(snapshot) {
-    const prevDice = this.state?.turn?.diceOnTable?.join(',') ?? '';
-    const newDice = snapshot?.turn?.diceOnTable?.join(',') ?? '';
-    const prevPlayer = this.state?.currentPlayerId;
-    const newPlayer = snapshot?.currentPlayerId;
+    const prevDice = diceKey(this.state);
+    const newDice = diceKey(snapshot);
+    const prevPlayer = this.state ? this.state.currentPlayerId : undefined;
+    const newPlayer = snapshot ? snapshot.currentPlayerId : undefined;
     if (prevDice !== newDice || prevPlayer !== newPlayer) {
       this.selection.clear();
       this.opponentSelection.clear();
       this.badgeTargeting = false;
     }
-    if (prevPlayer !== newPlayer || snapshot?.phase !== 'playing') {
+    if (prevPlayer !== newPlayer || !snapshot || snapshot.phase !== 'playing') {
       this.rolling = false;
     }
     if (this.rolling && this._rollingStartedAt && Date.now() - this._rollingStartedAt > 3000) {
@@ -186,6 +187,6 @@ export class Store {
   }
 
   isMyTurn() {
-    return this.state?.phase === 'playing' && this.state.currentPlayerId === this.myPlayerId;
+    return !!this.state && this.state.phase === 'playing' && this.state.currentPlayerId === this.myPlayerId;
   }
 }

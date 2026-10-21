@@ -346,7 +346,7 @@ export const DICE_TYPES_MAP = Object.fromEntries(DICE_TYPES.map((d) => [d.id, d]
 export const DEFAULT_LOADOUT = Array(6).fill('normal');
 
 export function modeAllowsSpecialDice(mode) {
-  return GAME_MODES[mode]?.allowSpecialDice !== false;
+  return !GAME_MODES[mode] || GAME_MODES[mode].allowSpecialDice !== false;
 }
 
 // Cosmetic dice (special: false) are unlimited; cheating dice are capped per mode.

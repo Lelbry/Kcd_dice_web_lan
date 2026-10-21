@@ -4,8 +4,8 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Кости — KCD2</title>
-  <link rel="stylesheet" href="/styles/main.css?v=2.10.2" />
-  <link rel="stylesheet" href="/styles/dice.css?v=2.10.2" />
+  <link rel="stylesheet" href="/styles/main.css?v=2.10.3" />
+  <link rel="stylesheet" href="/styles/dice.css?v=2.10.3" />
   <script>
     // If the game script fails to start (old browser, stale cache, blocked file), say so on screen:
     // phones have no console to look at.
@@ -27,7 +27,7 @@
           '\n' + navigator.userAgent;
         box.querySelector('button').onclick = function () { location.reload(); };
         document.body.appendChild(box);
-      }, 6000);
+      }, 10000);
     })();
   </script>
 </head>
@@ -253,6 +253,6 @@
     <div id="reconnect-banner" hidden>Соединение прервано, переподключение…</div>
   </div>
 
-  <script type="module" src="/js/main.js?v=2.10.2"></script>
+  <script type="module" src="/js/main.js?v=2.10.3"></script>
 </body>
 </html>

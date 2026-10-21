@@ -62,9 +62,9 @@ const net = new Net(wsUrl, {
   },
   onError: (err) => {
     console.warn('server error:', err);
-    if (err?.code === 'room_full') {
+    if (err && err.code === 'room_full') {
       showLobbyError('Комната заполнена.');
-    } else if (err?.code === 'lobby_not_found') {
+    } else if (err && err.code === 'lobby_not_found') {
       lobbyCode = null;
       lobbyJoined = false;
       store.setSnapshot(null);
@@ -74,7 +74,7 @@ const net = new Net(wsUrl, {
       history.replaceState(null, '', url.toString());
       showLobbySelect();
       showLobbyError('Лобби не найдено. Создайте новое или введите другой код.');
-    } else if (err?.code === 'invalid_lobby_code') {
+    } else if (err && err.code === 'invalid_lobby_code') {
       showLobbyError('Неверный код лобби.');
     }
   },
@@ -162,7 +162,7 @@ function triggerRollAnimation() {
 }
 
 function handleEvent(ev) {
-  if (!ev?.type) return;
+  if (!ev || !ev.type) return;
   if (ev.type === 'joined') {
     store.setMyPlayerId(ev.playerId);
     return;
@@ -180,7 +180,7 @@ function handleEvent(ev) {
     return;
   }
   if (ev.type === 'won') {
-    const winner = store.state?.players.find((p) => p.id === ev.playerId);
+    const winner = store.state && store.state.players.find((p) => p.id === ev.playerId);
     const txt = winner ? `${winner.name} победил!` : 'Победа!';
     showOverlay(txt, 'won', 2500);
     return;
@@ -194,7 +194,7 @@ function handleEvent(ev) {
   }
   if (ev.type === 'badge_activated') {
     const badge = BADGES_MAP[ev.badgeId];
-    showOverlay(badge?.flash || 'Бляха!', 'badge', 1300);
+    showOverlay((badge && badge.flash) || 'Бляха!', 'badge', 1300);
     store.flashBadge(ev.playerId, ev.diceIndex);
     if (ev.badgeId === 'resurrection') triggerRollAnimation();
     return;
@@ -226,7 +226,8 @@ store.subscribe(() => {
 
 let _prevInfoTurn = null;
 store.subscribe(() => {
-  const key = `${store.state?.phase}:${store.state?.currentPlayerId}`;
+  const s = store.state;
+  const key = s ? `${s.phase}:${s.currentPlayerId}` : '';
   if (key !== _prevInfoTurn) hideInfoCard();
   _prevInfoTurn = key;
 });
@@ -260,7 +261,7 @@ store.onBadgeTarget = (diceIndex) => {
 let _prevSelKey = '';
 let _prevTurnPlayer = null;
 store.subscribe(() => {
-  const curPlayer = store.state?.currentPlayerId;
+  const curPlayer = store.state && store.state.currentPlayerId;
   if (curPlayer !== _prevTurnPlayer) {
     _prevSelKey = '';
     _prevTurnPlayer = curPlayer;
@@ -320,7 +321,7 @@ function bindUI() {
   });
 
   function copyText(text) {
-    if (navigator.clipboard?.writeText) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(text).catch(() => copyFallback(text));
     } else {
       copyFallback(text);
@@ -507,7 +508,7 @@ function bindUI() {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
     if (e.code === 'Space') {
       e.preventDefault();
-      if (store.state?.turn?.awaitingFirstRoll && store.isMyTurn() && !store.rolling) {
+      if (store.state && store.state.turn && store.state.turn.awaitingFirstRoll && store.isMyTurn() && !store.rolling) {
         net.send({ type: 'roll' });
       }
     } else if (e.code === 'KeyF') {
@@ -549,7 +550,7 @@ function toggleHelp(force) {
 bindUI();
 
 const urlParams = new URLSearchParams(location.search);
-const urlLobby = urlParams.get('lobby')?.trim().toUpperCase();
+const urlLobby = (urlParams.get('lobby') || '').trim().toUpperCase();
 if (urlLobby) {
   lobbyCode = urlLobby;
   lobbyJoined = false;
@@ -561,3 +562,6 @@ if (urlLobby) {
 net.connect();
 render(store, lobbyCode);
 window.__kcdBooted = true;
+// On a slow connection the boot check may fire before the modules arrive; take its box down.
+const bootError = document.getElementById('boot-error');
+if (bootError) bootError.remove();

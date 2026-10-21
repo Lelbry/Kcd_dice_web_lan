@@ -16,8 +16,11 @@ Production: `https://kcddice.ru` (owner — пользователь, депло
 
 - Node 20+, `type: module`, Express + `ws`, zero bundler
 - Клиент — vanilla HTML/CSS/ES-модули, без фреймворков
+- Клиентский JS должен работать в Chrome 74 (старый Яндекс.Браузер на Android):
+  без `?.`, `??`, `||=`, `.at()`, `replaceAll`, `Object.hasOwn`, CSS `inset`.
+  Проверяет `tests/compat.test.js`
 - `npm start` — поднимает сервер на `0.0.0.0:8080` (переопределить: `npm start -- --port 3000`)
-- `npm test` — `node:test` по `tests/{scoring,validate,bot,color,weights,balance,badges}.test.js`
+- `npm test` — `node:test` по `tests/{scoring,validate,bot,color,weights,balance,badges,compat}.test.js`
 - `npm run test:e2e` — Playwright UI smoke (`tests/e2e/`), сам поднимает сервер на :8091
 - Дополнительные ручные скрипты: `tests/ws-smoke.mjs`, `tests/bot-smoke.mjs`, `tests/rng-audit.mjs`, `scripts/simulate.js`
 - Dev-сервер в этой сессии запускать через `preview_start { name: "kcd2-dice" }`, если
@@ -118,7 +121,7 @@ Production: `https://kcddice.ru` (owner — пользователь, депло
 
 При изменении любого CSS/JS в `public/` менять `?v=X.Y.Z` в трёх местах
 `public/index.html` одновременно (`main.css`, `dice.css`, `main.js`). Иначе у
-пользователей будет старый кэш. Сейчас стоит `?v=2.10.2`. Вложенные модули
+пользователей будет старый кэш. Сейчас стоит `?v=2.10.3`. Вложенные модули
 (`ui.js`, `engine/*.js`, …) без версии — сервер отдаёт `.js/.css/.html` с
 `Cache-Control: no-cache`, браузер и Cloudflare перепроверяют их по ETag.
 После деплоя, меняющего экспорты модулей, один раз сделать Purge Cache в Cloudflare. Для крупных релизов
