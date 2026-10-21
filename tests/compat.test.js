@@ -47,3 +47,15 @@ test('boot check in index.html probes every client module', () => {
   const actual = files('public/js', '.js').map((f) => f.replace(/\\/g, '/').replace(/^public\/js\//, '').replace(/\.js$/, '')).sort();
   assert.deepEqual(listed, actual);
 });
+
+test('every flex container with gap has a .no-flex-gap margin fallback', () => {
+  const css = files('public/styles', '.css').map((f) => readFileSync(f, 'utf8')).join('\n').replace(/\/\*[\s\S]*?\*\//g, '');
+  const missing = [];
+  for (const [, selectors, body] of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+    if (!/display:\s*(inline-)?flex/.test(body) || !/(^|[;\s])gap:/.test(body)) continue;
+    for (const sel of selectors.split(',').map((s) => s.trim())) {
+      if (!css.includes(`.no-flex-gap ${sel} >`)) missing.push(sel);
+    }
+  }
+  assert.deepEqual(missing, []);
+});
