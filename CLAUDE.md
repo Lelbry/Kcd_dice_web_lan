@@ -17,7 +17,8 @@ Production: `https://kcddice.ru` (owner — пользователь, депло
 - Node 20+, `type: module`, Express + `ws`, zero bundler
 - Клиент — vanilla HTML/CSS/ES-модули, без фреймворков
 - `npm start` — поднимает сервер на `0.0.0.0:8080` (переопределить: `npm start -- --port 3000`)
-- `npm test` — `node:test` по `tests/{scoring,validate,bot,color}.test.js`
+- `npm test` — `node:test` по `tests/{scoring,validate,bot,color,weights,balance}.test.js`
+- `npm run test:e2e` — Playwright UI smoke (`tests/e2e/`), сам поднимает сервер на :8091
 - Дополнительные ручные скрипты: `tests/ws-smoke.mjs`, `tests/bot-smoke.mjs`, `tests/rng-audit.mjs`, `scripts/simulate.js`
 - Dev-сервер в этой сессии запускать через `preview_start { name: "kcd2-dice" }`, если
   в `.claude/launch.json` настроена запись; иначе — через Bash с `run_in_background: true`
@@ -100,7 +101,7 @@ Production: `https://kcddice.ru` (owner — пользователь, депло
 
 При изменении любого CSS/JS в `public/` менять `?v=X.Y.Z` в трёх местах
 `public/index.html` одновременно (`main.css`, `dice.css`, `main.js`). Иначе у
-пользователей будет старый кэш. Сейчас стоит `?v=2.8.0`. Для крупных релизов
+пользователей будет старый кэш. Сейчас стоит `?v=2.9.0`. Для крупных релизов
 также бампать `version` в `package.json` и шильд в `README.md`.
 
 Деплой на `kcddice.ru`: `cd /opt/kcd-dice && git pull && sudo systemctl
