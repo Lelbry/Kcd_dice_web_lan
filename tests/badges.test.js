@@ -2,6 +2,10 @@ import { test } from 'node:test';
 import { strict as assert } from 'node:assert';
 import {
   BADGES,
+  BADGES_MAP,
+  BADGE_TIERS,
+  badgeStats,
+  badgeText,
   scoreWithBadge,
   canHoldWithBadge,
   activationBlocker,
@@ -19,12 +23,44 @@ const turn = (over = {}) => ({
   ...over,
 });
 
-test('catalogue: 8 badges, active ones have charges, unique ids', () => {
-  assert.equal(BADGES.length, 8);
-  assert.equal(new Set(BADGES.map((b) => b.id)).size, 8);
+test('catalogue: 14 badges, unique ids, every badge has stats at every tier', () => {
+  assert.equal(BADGES.length, 14);
+  assert.equal(new Set(BADGES.map((b) => b.id)).size, 14);
   for (const b of BADGES) {
-    if (b.kind === 'active') assert.ok(b.charges >= 1, b.id);
+    assert.ok(b.special ? !!b.stats && !b.tiers : !!b.tiers && !b.stats, b.id);
+    for (const tier of BADGE_TIERS) {
+      const st = badgeStats(b.id, tier);
+      if (b.kind === 'active') assert.ok(st.charges >= 1, `${b.id}/${tier}`);
+      assert.doesNotMatch(badgeText(b.id, tier), /\{|\}/, `${b.id}/${tier} has an unfilled placeholder`);
+    }
   }
+});
+
+test('tiers: a higher tier never has fewer charges or a weaker effect; special badges ignore the tier', () => {
+  const power = (st) => [st.charges, st.startBonus, st.shield, st.rerollMax, st.bankMultiplier];
+  for (const b of BADGES) {
+    const [tin, silver, gold] = BADGE_TIERS.map((t) => power(badgeStats(b.id, t)));
+    if (b.special) {
+      assert.deepEqual(tin, gold, b.id);
+      continue;
+    }
+    for (let i = 0; i < tin.length; i++) {
+      assert.ok(tin[i] <= silver[i] && silver[i] <= gold[i], `${b.id}: ${tin} / ${silver} / ${gold}`);
+    }
+    assert.notDeepEqual(tin, gold, `${b.id} is the same at tin and gold`);
+  }
+  assert.equal(badgeStats('doubling', 'gold').charges, 3);
+  assert.equal(badgeStats('headstart', 'gold').startBonus, 1000);
+  assert.equal(badgeStats('warlord', 'silver').bankMultiplier, 1.5);
+  assert.equal(badgeStats('nope', 'gold').charges, 0);
+  assert.equal(badgeStats('doubling', 'platinum').charges, 1);
+});
+
+test('emperor: three ones score 2000, and still combine with other dice', () => {
+  assert.equal(scoreWithBadge([1, 1, 1], 'emperor').score, 2000);
+  assert.equal(scoreWithBadge([1, 1, 1, 5], 'emperor').score, 2050);
+  assert.equal(scoreWithBadge([1, 1, 1, 1], 'emperor').score, 2100);
+  assert.equal(scoreWithBadge([1, 1, 1], 'doubling').score, 1000);
 });
 
 test('carpenter: 3+5 scores 150 and makes the lone 3 holdable', () => {
@@ -77,10 +113,10 @@ function fakeHuman(id, badge) {
   };
 }
 
-function startBadgeRoom(b0, b1) {
+function startBadgeRoom(b0, b1, tier = 'tin') {
   const room = new GameRoom({ farklePassDelayMs: 0, farkleRescueDelayMs: 0 });
   room.players = [fakeHuman('p0', b0), fakeHuman('p1', b1)];
-  room.settings = { mode: 'badge', targetScore: GAME_MODES.badge.defaultTarget, tier: 'tin' };
+  room.settings = { mode: 'badge', targetScore: GAME_MODES.badge.defaultTarget, tier };
   room._startGame();
   room.currentPlayerIdx = 0;
   room.turn = room._emptyTurn();
@@ -89,15 +125,20 @@ function startBadgeRoom(b0, b1) {
 
 const errorsOf = (p) => p.sent.filter((m) => m.type === 'error').map((m) => m.payload.code);
 
-test('room: headstart starts at 500, active badges get their charges', () => {
-  const room = startBadgeRoom('headstart', 'doubling');
-  const [a, b] = room.players;
-  assert.equal(a.totalScore, 500);
-  assert.equal(b.totalScore, 0);
-  assert.equal(b.badgeCharges, 1);
-  const snap = room.toSnapshot();
+test('room: headstart and charges follow the lobby tier', () => {
+  const tin = startBadgeRoom('headstart', 'doubling');
+  assert.equal(tin.players[0].totalScore, 250);
+  assert.equal(tin.players[1].totalScore, 0);
+  assert.equal(tin.players[1].badgeCharges, 1);
+  const gold = startBadgeRoom('headstart', 'doubling', 'gold');
+  assert.equal(gold.players[0].totalScore, 1000);
+  assert.equal(gold.players[1].badgeCharges, 3);
+  const snap = gold.toSnapshot();
   assert.equal(snap.players[1].badge, 'doubling');
-  assert.equal(snap.players[1].badgeCharges, 1);
+  assert.equal(snap.players[1].badgeCharges, 3);
+  assert.equal(snap.players[1].badgeTier, 'gold');
+  const def = startBadgeRoom('defence', 'emperor', 'silver');
+  assert.equal(def.players[0].shield, 2);
 });
 
 test('room: doubling doubles the next held score and is spent', () => {
@@ -129,6 +170,107 @@ test('room: transmutation turns the chosen die into a 5', () => {
   assert.deepEqual(errorsOf(me), ['badge_no_charges']);
 });
 
+function readyTable(room, dice) {
+  room.turn.awaitingFirstRoll = false;
+  room.turn.diceOnTable = [...dice];
+  room.turn.diceTypeIds = dice.map(() => 'normal');
+}
+
+test('room: fortune rerolls up to its tier\'s number of chosen dice', () => {
+  const room = startBadgeRoom('fortune', 'headstart', 'silver');
+  const me = room.players[0];
+  readyTable(room, [1, 2, 3, 4, 6, 6]);
+  room.handleMessage(me, { type: 'activate_badge', payload: { diceIndices: [1, 2, 3] } });
+  assert.deepEqual(errorsOf(me), ['badge_needs_dice']);
+  room.handleMessage(me, { type: 'activate_badge', payload: {} });
+  assert.deepEqual(errorsOf(me), ['badge_needs_dice', 'badge_needs_dice']);
+  room.handleMessage(me, { type: 'activate_badge', payload: { diceIndices: [4, 5] } });
+  assert.equal(me.badgeCharges, 0);
+  const entry = me.badgeLog[0];
+  assert.deepEqual(entry.diceIndices, [4, 5]);
+  assert.deepEqual(entry.from, [6, 6]);
+  assert.deepEqual(room.turn.diceOnTable.slice(0, 4), [1, 2, 3, 4]);
+  assert.deepEqual(entry.to, room.turn.diceOnTable.slice(4));
+});
+
+test('room: wedding rerolls up to three dice at any tier', () => {
+  const room = startBadgeRoom('wedding', 'headstart', 'tin');
+  const me = room.players[0];
+  readyTable(room, [1, 2, 3, 4, 6, 6]);
+  room.handleMessage(me, { type: 'activate_badge', payload: { diceIndices: [1, 2, 3] } });
+  assert.deepEqual(errorsOf(me), []);
+  assert.equal(me.badgeLog[0].to.length, 3);
+});
+
+test('room: might adds a seventh die for the whole turn, hot dice included', () => {
+  const room = startBadgeRoom('might', 'headstart', 'silver');
+  const me = room.players[0];
+  room.handleMessage(me, { type: 'activate_badge', payload: {} });
+  assert.equal(room.turn.extraDice, 1);
+  room.handleMessage(me, { type: 'activate_badge', payload: {} });
+  assert.deepEqual(errorsOf(me), ['badge_already_armed']);
+  room.handleMessage(me, { type: 'roll' });
+  assert.equal(room.turn.diceOnTable.length, 7);
+  assert.equal(room.turn.diceTypeIds.length, 7);
+  // After the roll it can no longer be used this turn.
+  room.handleMessage(me, { type: 'activate_badge', payload: {} });
+  assert.ok(errorsOf(me).includes('badge_needs_turn_start'));
+  // Hold all seven (seven ones) -> hot dice brings seven fresh dice.
+  if (room.farkleTimer) { clearTimeout(room.farkleTimer); room.farkleTimer = null; }
+  readyTable(room, [1, 1, 1, 1, 1, 1, 1]);
+  room.turn.extraDice = 1;
+  room.handleMessage(me, { type: 'score_and_roll', payload: { selection: [0, 1, 2, 3, 4, 5, 6] } });
+  assert.equal(room.turn.roundScore, 16000);
+  assert.equal(room.turn.diceOnTable.length, 7);
+  if (room.farkleTimer) clearTimeout(room.farkleTimer);
+});
+
+test('room: bird king gives two seventh-die turns at any tier', () => {
+  const room = startBadgeRoom('bird_king', 'headstart', 'tin');
+  assert.equal(room.players[0].badgeCharges, 2);
+});
+
+test('room: warlord grows the banked round by its tier, rounded to 50', () => {
+  const room = startBadgeRoom('warlord', 'headstart', 'silver');
+  const me = room.players[0];
+  readyTable(room, [1, 5, 2, 3, 4, 6]);
+  room.turn.roundScore = 250;
+  room.handleMessage(me, { type: 'activate_badge', payload: {} });
+  assert.equal(room.turn.bankMultiplier, 1.5);
+  room.handleMessage(me, { type: 'score_and_bank', payload: { selection: [0, 1] } });
+  // (250 + 150) * 1.5 = 600
+  assert.equal(me.totalScore, 600);
+  assert.equal(room.history.find((h) => h.type === 'banked').multiplier, 1.5);
+
+  const gold = startBadgeRoom('warlord', 'headstart', 'gold');
+  const g = gold.players[0];
+  readyTable(gold, [5, 2, 3, 4, 6, 6]);
+  gold.turn.roundScore = 75;
+  gold.handleMessage(g, { type: 'activate_badge', payload: {} });
+  gold.handleMessage(g, { type: 'score_and_bank', payload: { selection: [0] } });
+  assert.equal(g.totalScore, 250);
+});
+
+test('room: emperor banks 2000 for three ones', () => {
+  const room = startBadgeRoom('emperor', 'headstart');
+  const me = room.players[0];
+  readyTable(room, [1, 1, 1, 2, 3, 4]);
+  room.handleMessage(me, { type: 'score_and_bank', payload: { selection: [0, 1, 2] } });
+  assert.deepEqual(errorsOf(me), []);
+  assert.equal(me.totalScore, 2000);
+});
+
+test('room: gold defence burns three activations', () => {
+  const room = startBadgeRoom('doubling', 'defence', 'gold');
+  const [me, opp] = room.players;
+  readyTable(room, [1, 2, 3, 4, 6, 6]);
+  for (let i = 0; i < 3; i++) room.handleMessage(me, { type: 'activate_badge', payload: {} });
+  assert.equal(me.badgeCharges, 0);
+  assert.equal(opp.shield, 0);
+  assert.equal(room.turn.doubleArmed, false);
+  assert.equal(me.badgeLog.filter((e) => e.type === 'badge_blocked').length, 3);
+});
+
 test('room: carpenter lets a player hold 3+5 for 150', () => {
   const room = startBadgeRoom('carpenter', 'headstart');
   const me = room.players[0];
@@ -141,7 +283,7 @@ test('room: carpenter lets a player hold 3+5 for 150', () => {
 });
 
 test('room: resurrection undoes a farkle and keeps the round score', () => {
-  const room = startBadgeRoom('resurrection', 'headstart');
+  const room = startBadgeRoom('resurrection', 'headstart', 'silver');
   const me = room.players[0];
   room.farkleRescueDelayMs = 60_000;
   room.turn.awaitingFirstRoll = false;
@@ -197,7 +339,7 @@ test('bot: picks badge moments sensibly', () => {
 });
 
 // Full bot-vs-bot games through the real room, with timers at zero.
-function playBotGame(badges, target = GAME_MODES.badge.defaultTarget) {
+function playBotGame(badges, target = GAME_MODES.badge.defaultTarget, tier = 'tin') {
   return new Promise((res, reject) => {
     let resolve = res;
     // A small rescue window so the bot's resurrection lands before the farkle passes the turn.
@@ -223,7 +365,7 @@ function playBotGame(badges, target = GAME_MODES.badge.defaultTarget) {
       room._setupBadgeOriginal(p);
       p.isBot = true;
     };
-    room.settings = { mode: 'badge', targetScore: target, tier: 'tin' };
+    room.settings = { mode: 'badge', targetScore: target, tier };
     room._startGame();
     const guard = setTimeout(() => {
       driver.cancel();
@@ -234,12 +376,12 @@ function playBotGame(badges, target = GAME_MODES.badge.defaultTarget) {
   });
 }
 
-test('room: bot-vs-bot badge games always finish, every badge gets used', async () => {
+test('room: bot-vs-bot badge games always finish at every tier, every badge gets used', async () => {
   const used = new Set();
-  for (const b of BADGES) {
-    const games = b.kind === 'active' ? 10 : 3;
+  for (const tier of BADGE_TIERS) for (const b of BADGES) {
+    const games = b.kind === 'active' ? 4 : 1;
     for (let i = 0; i < games; i++) {
-      const room = await playBotGame([b.id, 'headstart']);
+      const room = await playBotGame([b.id, 'headstart'], GAME_MODES.badge.defaultTarget, tier);
       assert.equal(room.phase, 'finished');
       for (const p of room.players) for (const e of p.badgeLog) used.add(e.badgeId);
     }

@@ -103,10 +103,16 @@ Production: `https://kcddice.ru` (owner — пользователь, депло
 
 - Каталог и правила — `server/engine/badges.js` (полное зеркало в
   `public/js/engine/badges.js`), UI — `public/js/badges.js`.
-- v1: 8 блях без редкостей (4 активные, 4 пассивные). Полный список KCD2,
-  редкости и план v2 — `docs/BADGE_REFERENCE.md`.
-- Протокол: `set_badge {badgeId}`, `activate_badge {diceIndex?}`; события
-  `badge_activated` / `badge_blocked`.
+- 14 блях KCD2. Базовые — три уровня (жесть/серебро/золото: выше уровень —
+  больше зарядов или сильнее эффект), особые — одна сила на любом уровне.
+  Уровень общий для партии: `room.settings.tier`. Числа брать только через
+  `badgeStats(id, tier)`, текст с числами — `badgeText(id, tier)`. Таблица и
+  баланс — `docs/BADGE_REFERENCE.md`.
+- Протокол: `set_badge {badgeId}`, `activate_badge {diceIndex? | diceIndices?}`
+  (`diceIndices` — фортуна и свадьба); события `badge_activated` / `badge_blocked`.
+- Бляхи силы и Короля птиц дают седьмую кость на ход (`turn.extraDice`):
+  `MAX_DICE = 7` в `rules.js`, 7 одинаковых = база ×16. Военачальник —
+  `turn.bankMultiplier` при банке.
 - `activationBlocker` — единая проверка «можно ли применить» для сервера,
   клиента и бота. Баланс — `node scripts/badge-balance.js`.
 
@@ -133,7 +139,7 @@ Production: `https://kcddice.ru` (owner — пользователь, депло
 
 При изменении любого CSS/JS в `public/` менять `?v=X.Y.Z` в трёх местах
 `public/index.html` одновременно (`main.css`, `dice.css`, `main.js`). Иначе у
-пользователей будет старый кэш. Сейчас стоит `?v=2.12.0`. Вложенные модули
+пользователей будет старый кэш. Сейчас стоит `?v=2.13.0`. Вложенные модули
 (`ui.js`, `engine/*.js`, …) без версии — сервер отдаёт `.js/.css/.html` с
 `Cache-Control: no-cache`, браузер и Cloudflare перепроверяют их по ETag.
 После деплоя, меняющего экспорты модулей, один раз сделать Purge Cache в Cloudflare. Для крупных релизов

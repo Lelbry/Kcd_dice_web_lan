@@ -1,4 +1,4 @@
-import { TARGET_OPTIONS, DICE_COUNT, GAME_MODES, GAME_MODE_IDS, DEFAULT_GAME_MODE } from './engine/rules.js';
+import { MAX_DICE, GAME_MODES, GAME_MODE_IDS } from './engine/rules.js';
 import { validateLoadoutArray } from './engine/dice-types.js';
 import { isValidBadge, BADGE_TIERS } from './engine/badges.js';
 
@@ -108,8 +108,8 @@ export function validateLoadout(payload) {
 export function validateSelection(payload) {
   const sel = payload?.selection;
   if (!Array.isArray(sel)) return null;
-  if (sel.length === 0 || sel.length > DICE_COUNT) return null;
-  if (!sel.every((i) => Number.isInteger(i) && i >= 0 && i < DICE_COUNT)) return null;
+  if (sel.length === 0 || sel.length > MAX_DICE) return null;
+  if (!sel.every((i) => Number.isInteger(i) && i >= 0 && i < MAX_DICE)) return null;
   if (new Set(sel).size !== sel.length) return null;
   return { selection: sel };
 }
@@ -118,9 +118,17 @@ export function validateSetBadge(payload) {
   return isValidBadge(payload?.badgeId) ? { badgeId: payload.badgeId } : null;
 }
 
+// {diceIndex} for one-die badges, {diceIndices} for the reroll badges, nothing for the rest.
 export function validateActivateBadge(payload) {
   const idx = payload?.diceIndex;
-  if (idx === undefined || idx === null) return { diceIndex: null };
-  if (!Number.isInteger(idx) || idx < 0 || idx >= DICE_COUNT) return null;
-  return { diceIndex: idx };
+  const list = payload?.diceIndices;
+  const isIdx = (i) => Number.isInteger(i) && i >= 0 && i < MAX_DICE;
+  if (list !== undefined && list !== null) {
+    if (!Array.isArray(list) || list.length === 0 || list.length > MAX_DICE || !list.every(isIdx)) return null;
+    if (new Set(list).size !== list.length) return null;
+    return { diceIndex: null, diceIndices: [...list] };
+  }
+  if (idx === undefined || idx === null) return { diceIndex: null, diceIndices: null };
+  if (!isIdx(idx)) return null;
+  return { diceIndex: idx, diceIndices: null };
 }

@@ -6,7 +6,7 @@ const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const CODE_LENGTH = 5;
 const EMPTY_LOBBY_TTL_MS = 10 * 60 * 1000;
 
-// KCD_BOT_SPEED=4 makes bots think 4x faster (used by the e2e tests); unset in production.
+// KCD_BOT_SPEED=2 makes bots think 2x faster (used by the e2e tests); unset in production.
 function botTiming() {
   const speed = Number(process.env.KCD_BOT_SPEED) || 1;
   if (speed === 1) return {};

@@ -93,7 +93,7 @@ scripts/
 
 Бот перед каждым `score_and_*` сначала шлёт людям `select_preview` со своим
 выбором и делает ход через `previewMs` (1 с), чтобы соперник видел, что он
-откладывает. `KCD_BOT_SPEED=4` ускоряет ботов (так их запускают e2e-тесты).
+откладывает. `KCD_BOT_SPEED=2` ускоряет ботов (так их запускают e2e-тесты).
 
 ## 4. Протокол
 
@@ -110,7 +110,7 @@ scripts/
 | `set_profile` | `{name?, color?}` | любая |
 | `set_loadout` | `{loadout: [id×6], mode?}` — проверяется по правилам режима | любая |
 | `set_badge` | `{badgeId}` | любая (применяется на старте партии) |
-| `activate_badge` | `{diceIndex?}` — индекс кости для превращения/обмена | playing, режим `badge` |
+| `activate_badge` | `{diceIndex?}` — превращение/обмен; `{diceIndices}` — фортуна/свадьба (до `rerollMax` костей) | playing, режим `badge` |
 | `add_bot` / `remove_bot` | — | lobby |
 | `set_settings` | `{mode?, targetScore?, tier?}` — общие для обоих; цель не из режима → его цель по умолчанию | lobby |
 | `set_ready` | `{ready: boolean}` — «готов» нужен, когда в комнате двое | lobby |

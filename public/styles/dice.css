@@ -203,6 +203,12 @@
   outline-offset: 3px;
   animation: badge-target-glow 900ms ease-in-out infinite;
 }
+.die.badge-target.badge-picked {
+  outline: 3px solid #f1dca0;
+  filter: brightness(1.15);
+  box-shadow: 0 0 0 3px rgba(58,37,12,0.6), 0 0 16px 5px rgba(217,179,90,0.85);
+  animation: none;
+}
 .die.badge-triggered {
   animation: badge-die-flip 700ms cubic-bezier(.2,1.4,.4,1);
   box-shadow: 0 0 0 3px #f1dca0, 0 0 18px 6px rgba(217,179,90,0.8);

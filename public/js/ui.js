@@ -3,7 +3,7 @@ import { TRIPLE_BASE, multiplierForCount, GAME_MODES, DEFAULT_GAME_MODE } from '
 import { computeDieGradient, adjustLightness, hexToHsl } from './color.js';
 import { DICE_TYPES, DICE_TYPES_MAP, MAX_SPECIAL_DICE, MAX_SAME_SPECIAL, modeAllowsSpecialDice } from './engine/dice-types.js';
 import { PIP_GLYPHS, FACE_GLYPHS } from './glyphs.js';
-import { scoreWithBadge, BADGES_MAP } from './engine/badges.js';
+import { scoreWithBadge, badgeStats, BADGES_MAP } from './engine/badges.js';
 import { renderBadgeLobby, renderBadgeBar, renderBadgeAction, renderBadgesReveal, badgeHistoryText, scoreBadge } from './badges.js';
 import { toggleInfoCard } from './infocard.js';
 import { scatterPositions, SCATTER_SIZES, MARKER_H } from './scatter.js';
@@ -234,7 +234,7 @@ function renderLobby(state, store) {
   renderLobbyStatus(state, store);
 
   renderLoadout(store);
-  renderBadgeLobby(store, currentMode);
+  renderBadgeLobby(store, currentMode, settings.tier);
 }
 
 const LOADOUT_TEXTS = {
@@ -452,6 +452,17 @@ function renderTurnIndicator(state, store) {
   el.classList.toggle('theirs', !isMine);
   const modeCfg = GAME_MODES[state.gameMode] || GAME_MODES[DEFAULT_GAME_MODE];
   const modeTag = ` · ${modeCfg.name}`;
+  // While a badge waits for dice, the banner says what to tap: it never covers the table.
+  const targetHint = badgeTargetHint(state, store);
+  el.classList.toggle('targeting', !!targetHint);
+  if (targetHint) {
+    textEl.innerHTML = '';
+    const span = document.createElement('span');
+    span.className = 'badge-target-hint';
+    span.textContent = targetHint;
+    textEl.appendChild(span);
+    return;
+  }
   if (isMine) {
     const hint = state.turn && state.turn.awaitingFirstRoll ? '  (Space = бросить)' : '';
     textEl.textContent = `Ваш ход${modeTag}${hint}`;
@@ -460,6 +471,19 @@ function renderTurnIndicator(state, store) {
     const hint = state.turn && state.turn.diceOnTable && state.turn.diceOnTable.length ? '  (нажмите на кость — узнаете о ней)' : '';
     textEl.textContent = `Ход: ${oppName}${modeTag}${hint}`;
   }
+}
+
+function badgeTargetHint(state, store) {
+  const turn = state.turn || {};
+  if (!store.isMyTurn() || !store.badgeTargeting || store.rolling || turn.isFarkle || turn.awaitingFirstRoll) return null;
+  const me = state.players.find((p) => p.id === store.myPlayerId);
+  const badge = BADGES_MAP[me && me.badge];
+  if (!badge) return null;
+  if (badge.target === 'dice') {
+    const max = badgeStats(badge.id, me.badgeTier).rerollMax;
+    return max === 1 ? 'Отметьте кость и нажмите «Перебросить» · Esc — отмена' : `Отметьте до ${max} костей и нажмите «Перебросить» · Esc — отмена`;
+  }
+  return `Выберите кость — ${badge.name} · Esc — отмена`;
 }
 
 function renderScorePanel(state, store) {
@@ -551,13 +575,6 @@ function renderDice(state, store) {
 
   const diceTypeIds = turn.diceTypeIds || [];
   const targeting = isMine && store.badgeTargeting && !blocked && !store.rolling;
-  if (targeting) {
-    const me = state.players.find((p) => p.id === store.myPlayerId);
-    const hint = document.createElement('div');
-    hint.className = 'badge-target-hint';
-    hint.textContent = `Выберите кость — ${(BADGES_MAP[me && me.badge] || { name: 'бляха' }).name}. Esc — отмена.`;
-    area.appendChild(hint);
-  }
   const fx = store.badgeFx && store.badgeFx.until > Date.now() ? store.badgeFx : null;
 
   const areaRect = area.getBoundingClientRect();
@@ -587,6 +604,7 @@ function renderDice(state, store) {
     if (!isMine || blocked || store.rolling) classes.push('disabled');
     if (store.rolling) classes.push('rolling');
     if (targeting) classes.push('badge-target');
+    if (targeting && store.badgePicks.has(i)) classes.push('badge-picked');
     if (fx && fx.diceIndex === i) classes.push('badge-triggered');
     const typeId = diceTypeIds[i] || 'normal';
     const el = dieElement(displayV, classes, typeId);
