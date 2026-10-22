@@ -6,6 +6,7 @@ import { PIP_GLYPHS, FACE_GLYPHS } from './glyphs.js';
 import { scoreWithBadge, BADGES_MAP } from './engine/badges.js';
 import { renderBadgeLobby, renderBadgeBar, renderBadgeAction, renderBadgesReveal, badgeHistoryText, scoreBadge } from './badges.js';
 import { toggleInfoCard } from './infocard.js';
+import { scatterPositions, SCATTER_SIZES, MARKER_H } from './scatter.js';
 
 const DEFAULT_DICE_COLOR = '#f4e8c1';
 
@@ -239,13 +240,6 @@ function renderLoadout(store) {
   }
 }
 
-function pickerGroup(catalog, title) {
-  const h = document.createElement('div');
-  h.className = 'catalog-group';
-  h.textContent = title;
-  catalog.appendChild(h);
-}
-
 function openDicePicker(store, slotIdx) {
   _pickerSlotIdx = slotIdx;
   const mode = store._selectedMode || DEFAULT_GAME_MODE;
@@ -254,24 +248,50 @@ function openDicePicker(store, slotIdx) {
   const catalog = document.getElementById('dice-catalog');
   const title = document.getElementById('dice-picker-title');
   if (title) title.textContent = loadoutTexts(mode).picker;
+  const tabs = document.getElementById('dice-picker-tabs');
   modal.hidden = false;
-  catalog.innerHTML = '';
 
   const loadout = store.getLoadout(mode);
   const currentSpecials = loadout.filter((id) => DICE_TYPES_MAP[id] && DICE_TYPES_MAP[id].special).length;
   const slotType = DICE_TYPES_MAP[loadout[slotIdx]];
   const currentSlotIsSpecial = slotType && slotType.special;
 
-  const cheating = allowSpecial ? DICE_TYPES.filter((d) => d.special) : [];
+  const cheating = DICE_TYPES.filter((d) => d.special);
   const cosmetic = DICE_TYPES.filter((d) => !d.special);
-  const groups = allowSpecial
-    ? [['Шулерские кости', cheating], ['Только внешний вид — играют как обычные', cosmetic]]
-    : [[null, cosmetic]];
 
-  for (const [groupTitle, dice] of groups) {
-    if (groupTitle) pickerGroup(catalog, groupTitle);
+  function show(dice) {
+    catalog.innerHTML = '';
+    catalog.scrollTop = 0;
     for (const dt of dice) catalog.appendChild(diceCard(store, dt, loadout, slotIdx, currentSpecials, currentSlotIsSpecial, modal));
   }
+
+  // Cheating and cosmetic dice live on separate tabs so either kind is one tap away.
+  tabs.hidden = !allowSpecial;
+  tabs.innerHTML = '';
+  if (!allowSpecial) {
+    show(cosmetic);
+    return;
+  }
+  const groups = [
+    { id: 'cheating', label: `Шулерские (${cheating.length})`, dice: cheating },
+    { id: 'cosmetic', label: `Обычные (${cosmetic.length})`, dice: cosmetic },
+  ];
+  const startCosmetic = !!slotType && !slotType.special && slotType.id !== 'normal';
+  function select(group) {
+    tabs.querySelectorAll('.help-tab').forEach((b) => b.classList.toggle('active', b.dataset.group === group.id));
+    show(group.dice);
+  }
+  for (const group of groups) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'help-tab';
+    btn.setAttribute('role', 'tab');
+    btn.dataset.group = group.id;
+    btn.textContent = group.label;
+    btn.addEventListener('click', () => select(group));
+    tabs.appendChild(btn);
+  }
+  select(startCosmetic ? groups[1] : groups[0]);
 }
 
 function diceCard(store, dt, loadout, slotIdx, currentSpecials, currentSlotIsSpecial, modal) {
@@ -457,51 +477,12 @@ function renderScorePanel(state, store) {
   panel.appendChild(table);
 }
 
-function scatterPositions(count, areaW, areaH, dieSize) {
-  const pad = dieSize * 0.15;
-  const half = dieSize / 2;
-  const minDist = dieSize * 1.4;
-  const positions = [];
-  const maxX = areaW - dieSize - pad;
-  const maxY = areaH - dieSize - pad;
-  for (let i = 0; i < count; i++) {
-    let x, y, ok;
-    for (let attempt = 0; attempt < 200; attempt++) {
-      x = pad + Math.random() * (maxX - pad);
-      y = pad + Math.random() * (maxY - pad);
-      ok = true;
-      for (const p of positions) {
-        const dx = (x + half) - (p.x + half), dy = (y + half) - (p.y + half);
-        if (Math.sqrt(dx * dx + dy * dy) < minDist) { ok = false; break; }
-      }
-      if (ok) break;
-    }
-    positions.push({ x, y, rot: (Math.random() - 0.5) * 24 });
-  }
-  for (let iter = 0; iter < 50; iter++) {
-    let moved = false;
-    for (let i = 0; i < positions.length; i++) {
-      for (let j = i + 1; j < positions.length; j++) {
-        const a = positions[i], b = positions[j];
-        const dx = (b.x + half) - (a.x + half), dy = (b.y + half) - (a.y + half);
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        if (dist < minDist) {
-          const overlap = (minDist - dist) / 2 + 1;
-          const angle = dist > 0.1 ? Math.atan2(dy, dx) : Math.random() * Math.PI * 2;
-          const mx = Math.cos(angle) * overlap, my = Math.sin(angle) * overlap;
-          a.x -= mx; a.y -= my;
-          b.x += mx; b.y += my;
-          moved = true;
-        }
-      }
-    }
-    for (const p of positions) {
-      p.x = Math.max(pad, Math.min(maxX, p.x));
-      p.y = Math.max(pad, Math.min(maxY, p.y));
-    }
-    if (!moved) break;
-  }
-  return positions;
+// Short name for the tag under a selected die: "Игральная кость Лю" -> "Лю".
+const SHORT_NAMES = { pie: 'Пирог', normal: 'Обычная' };
+export function shortDieName(dt) {
+  if (SHORT_NAMES[dt.id]) return SHORT_NAMES[dt.id];
+  const s = dt.name.replace(/(^|\s)(игральная\s+)?кость(\s|$)/i, ' ').replace(/\s+/g, ' ').trim();
+  return s ? s.charAt(0).toUpperCase() + s.slice(1) : dt.name;
 }
 
 function renderDice(state, store) {
@@ -533,16 +514,20 @@ function renderDice(state, store) {
   const fx = store.badgeFx && store.badgeFx.until > Date.now() ? store.badgeFx : null;
 
   const areaRect = area.getBoundingClientRect();
-  const isMobile = window.innerWidth <= 600;
-  const dieSize = isMobile ? 52 : 72;
+  const size = window.matchMedia('(max-height: 500px) and (orientation: landscape)').matches ? SCATTER_SIZES.landscape
+    : window.innerWidth <= 600 ? SCATTER_SIZES.phone : SCATTER_SIZES.desktop;
+  const dieSize = size.die;
   const areaW = areaRect.width || 300;
   const areaH = areaRect.height || 200;
 
-  const diceKey = dice.join(',');
-  if (!area._scatterSeeds || area._scatterKey !== diceKey) {
+  // Re-scatter on a new roll or when the table changes size (rotation, phone/desktop switch).
+  const diceKey = `${dice.join(',')}|${Math.round(areaW)}x${Math.round(areaH)}`;
+  if (!area._scatter || area._scatterKey !== diceKey) {
     area._scatterKey = diceKey;
-    area._scatterSeeds = scatterPositions(dice.length, areaW, areaH, dieSize);
+    area._scatter = scatterPositions(dice.length, areaW, areaH, size);
   }
+  const scatter = area._scatter;
+  const showLabels = isMine && !store.rolling && !blocked && scatter.labelH > 0;
 
   for (let i = 0; i < dice.length; i++) {
     const realV = dice[i];
@@ -560,10 +545,10 @@ function renderDice(state, store) {
     const el = dieElement(displayV, classes, typeId);
     const diceType = DICE_TYPES_MAP[typeId];
     applyDieColor(el, (diceType && diceType.color) || DEFAULT_DICE_COLOR, !!(diceType && diceType.special));
-    if (diceType && diceType.special) el.title = diceType.name;
+    if (diceType) el.title = diceType.name;
     el.dataset.idx = String(i);
 
-    const s = area._scatterSeeds[i];
+    const s = scatter.positions[i];
     if (store.rolling) {
       el.style.left = `${areaW / 2 - dieSize / 2}px`;
       el.style.top = `${areaH / 2 - dieSize / 2}px`;
@@ -582,7 +567,24 @@ function renderDice(state, store) {
       makeInspectable(el, state, store, typeId, state.currentPlayerId, `table:${i}:${typeId}:${realV}`);
     }
     area.appendChild(el);
+    if (selected && showLabels) area.appendChild(dieLabel(diceType || DICE_TYPES_MAP.normal, s, dieSize, scatter, areaW));
   }
+}
+
+// Name tag under a die the player has selected, in the room the scatter reserved below it.
+function dieLabel(dt, pos, dieSize, scatter, areaW) {
+  const tag = document.createElement('div');
+  tag.className = 'die-label' + (dt.special ? ' special' : '');
+  tag.textContent = shortDieName(dt);
+  tag.title = dt.name;
+  const centre = pos.x + dieSize / 2;
+  const half = scatter.labelW / 2;
+  tag.style.maxWidth = `${scatter.labelW}px`;
+  tag.style.left = `${Math.min(Math.max(centre, half), areaW - half)}px`;
+  tag.style.top = `${pos.y + dieSize + MARKER_H}px`;
+  tag.style.height = `${scatter.labelH}px`;
+  tag.style.lineHeight = `${scatter.labelH}px`;
+  return tag;
 }
 
 function renderLockedTray(state, store) {
