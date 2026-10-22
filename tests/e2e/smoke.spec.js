@@ -180,7 +180,8 @@ test('badge mode: pick a badge, use it on a die, read about it in help', async (
   await expect(page.locator('.badge-chip.mine .charge.full')).toHaveCount(0);
   await expect(page.locator('#dice-area .die.badge-target')).toHaveCount(0);
   await page.locator('#log-toggle').click();
-  await expect(page.locator('#log-panel')).toContainText('Бляха превращения — кость');
+  // The bot draws a random badge: its Бляха защиты may burn the transmutation, which is also a valid outcome.
+  await expect(page.locator('#log-panel')).toContainText(/Бляха превращения — кость|Бляха превращения сгорела/);
 
   await page.keyboard.press('KeyT');
   await page.locator('[data-help-tab="badges"]').click();
