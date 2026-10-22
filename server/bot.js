@@ -2,7 +2,7 @@ import { randomInt } from 'node:crypto';
 import { scoreSelection } from './engine/scoring.js';
 import { scoreWithBadge, activationBlocker, BADGES_MAP } from './engine/badges.js';
 import { ClientMsg } from './protocol.js';
-import { DICE_TYPES, MAX_SPECIAL_DICE, modeAllowsSpecialDice } from './engine/dice-types.js';
+import { DICE_TYPES, DICE_SETS, MAX_SPECIAL_DICE, modeAllowsSpecialDice } from './engine/dice-types.js';
 
 export const MOODS = {
   cautious: {
@@ -259,7 +259,10 @@ export class BotDriver {
     // (~2 сек) и игрок успеет рассмотреть выпавшие кости, прежде чем решать.
     postRollDelayMinMs = 2500,
     postRollDelayMaxMs = 3500,
+    // How long the opponent sees the bot's chosen dice highlighted before it scores them.
+    previewMs = 1000,
   } = {}) {
+    this.previewMs = previewMs;
     this.room = room;
     this.firstRollDelayMin = firstRollDelayMinMs;
     this.firstRollDelayMax = firstRollDelayMaxMs;
@@ -318,7 +321,18 @@ export class BotDriver {
         this.timer = setTimeout(() => { this.timer = null; this.tick(); }, 1000);
         return;
       }
-      this.room.handleMessage(bot, decision);
+      // Show the choice first, like a human picking dice, then score it.
+      this.room.relaySelectPreview(bot, decision.payload.selection);
+      const dice = this.room.turn.diceOnTable.join(',');
+      this.timer = setTimeout(() => {
+        this.timer = null;
+        const now = this.room._currentPlayer?.();
+        if (this.room.phase === 'playing' && now && now.id === bot.id && this.room.turn.diceOnTable.join(',') === dice) {
+          this.room.handleMessage(bot, decision);
+        } else {
+          this.tick();
+        }
+      }, this.previewMs);
     } catch (err) {
       console.error('[bot] action failed:', err);
       this.timer = setTimeout(() => { this.timer = null; this.tick(); }, 1000);
@@ -333,7 +347,16 @@ export class BotDriver {
   }
 }
 
-/** Случайный набор костей бота под режим: в classic — только внешний вид, иначе — до лимита шулерских. */
+// Cheating dice a bot may take: those that roll a 1 or a 5 at least as often as a fair die (1/3).
+// Dice that only pay off in a set (Lu, Qi, Fer) come as the whole set instead.
+export const BOT_DICE_POOL = DICE_TYPES.filter((d) => {
+  if (!d.special || d.set) return false;
+  const total = d.weights.reduce((s, w) => s + w, 0);
+  return (d.weights[0] + d.weights[4]) / total >= 1 / 3;
+}).map((d) => d.id);
+const BOT_SET_CHANCE = 0.2;
+
+/** Набор костей бота под режим: в classic — только внешний вид, иначе — ровно MAX_SPECIAL_DICE шулерских. */
 export function generateBotLoadout(mode = 'pocket', rng = Math.random) {
   const loadout = Array(6).fill('normal');
   if (!modeAllowsSpecialDice(mode)) {
@@ -342,17 +365,20 @@ export function generateBotLoadout(mode = 'pocket', rng = Math.random) {
     const look = cosmetics[Math.floor(rng() * cosmetics.length)].id;
     return loadout.map(() => look);
   }
-  const pool = DICE_TYPES.filter((d) => d.special);
-  const numSpecial = 1 + Math.floor(rng() * MAX_SPECIAL_DICE);
   const slots = [0, 1, 2, 3, 4, 5];
   for (let i = slots.length - 1; i > 0; i--) {
     const j = Math.floor(rng() * (i + 1));
     [slots[i], slots[j]] = [slots[j], slots[i]];
   }
-  for (let k = 0; k < numSpecial && pool.length > 0; k++) {
-    const [pick] = pool.splice(Math.floor(rng() * pool.length), 1);
-    loadout[slots[k]] = pick.id;
+  let picks;
+  if (DICE_SETS.demons.members.length === MAX_SPECIAL_DICE && rng() < BOT_SET_CHANCE) {
+    picks = [...DICE_SETS.demons.members];
+  } else {
+    const pool = [...BOT_DICE_POOL];
+    picks = [];
+    while (picks.length < MAX_SPECIAL_DICE && pool.length > 0) picks.push(pool.splice(Math.floor(rng() * pool.length), 1)[0]);
   }
+  picks.forEach((id, k) => { loadout[slots[k]] = id; });
   return loadout;
 }
 

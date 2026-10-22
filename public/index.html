@@ -4,8 +4,8 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Кости — KCD2</title>
-  <link rel="stylesheet" href="/styles/main.css?v=2.11.0" />
-  <link rel="stylesheet" href="/styles/dice.css?v=2.11.0" />
+  <link rel="stylesheet" href="/styles/main.css?v=2.12.0" />
+  <link rel="stylesheet" href="/styles/dice.css?v=2.12.0" />
   <script>
     // If the game script fails to start (old browser, stale cache, blocked file), say so on screen:
     // phones have no console to look at.
@@ -169,6 +169,24 @@
               <span class="mode-name">Игра с бляхой</span>
             </label>
           </div>
+          <div class="tier-selector" id="tier-selector" hidden>
+            <div class="mode-label">Уровень блях:</div>
+            <div class="mode-options tier-options">
+              <label class="mode-option" data-tier="tin">
+                <input type="radio" name="badge-tier" value="tin" />
+                <span class="mode-name">Жестяные</span>
+              </label>
+              <label class="mode-option" data-tier="silver">
+                <input type="radio" name="badge-tier" value="silver" />
+                <span class="mode-name">Серебряные</span>
+              </label>
+              <label class="mode-option" data-tier="gold">
+                <input type="radio" name="badge-tier" value="gold" />
+                <span class="mode-name">Золотые</span>
+              </label>
+            </div>
+          </div>
+          <div class="settings-hint">Режим, цель и уровень блях общие для обоих игроков.</div>
         </div>
         <div class="dice-loadout" id="dice-loadout" hidden>
           <div class="loadout-label" id="loadout-label">Мои кости:</div>
@@ -184,8 +202,9 @@
         <div class="form-row">
           <label for="target-select">Цель:</label>
           <select id="target-select"></select>
-          <button id="start-btn" class="primary">Начать игру</button>
+          <button id="ready-btn" class="primary">Готов</button>
         </div>
+        <div class="lobby-status" id="lobby-status"></div>
         <button id="leave-lobby-btn" class="action-btn danger" style="margin-top:12px">Выйти из лобби</button>
       </div>
     </section>
@@ -326,6 +345,6 @@
     <div id="reconnect-banner" hidden>Соединение прервано, переподключение…</div>
   </div>
 
-  <script type="module" src="/js/main.js?v=2.11.0"></script>
+  <script type="module" src="/js/main.js?v=2.12.0"></script>
 </body>
 </html>

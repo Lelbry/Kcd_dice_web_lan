@@ -80,7 +80,8 @@ function fakeHuman(id, badge) {
 function startBadgeRoom(b0, b1) {
   const room = new GameRoom({ farklePassDelayMs: 0, farkleRescueDelayMs: 0 });
   room.players = [fakeHuman('p0', b0), fakeHuman('p1', b1)];
-  room.handleMessage(room.players[0], { type: 'start_game', payload: { mode: 'badge', targetScore: GAME_MODES.badge.defaultTarget } });
+  room.settings = { mode: 'badge', targetScore: GAME_MODES.badge.defaultTarget, tier: 'tin' };
+  room._startGame();
   room.currentPlayerIdx = 0;
   room.turn = room._emptyTurn();
   return room;
@@ -177,7 +178,8 @@ test('room: defence eats the opponent\'s first activation', () => {
 test('room: badges are ignored outside badge mode', () => {
   const room = new GameRoom();
   room.players = [fakeHuman('p0', 'headstart'), fakeHuman('p1', 'doubling')];
-  room.handleMessage(room.players[0], { type: 'start_game', payload: { mode: 'pocket', targetScore: 4000 } });
+  room.settings = { mode: 'pocket', targetScore: 4000, tier: 'tin' };
+  room._startGame();
   assert.equal(room.players[0].totalScore, 0);
   assert.equal(room.toSnapshot().players[0].badge, undefined);
 });
@@ -201,7 +203,7 @@ function playBotGame(badges, target = GAME_MODES.badge.defaultTarget) {
     // A small rescue window so the bot's resurrection lands before the farkle passes the turn.
     const room = new GameRoom({ farklePassDelayMs: 0, farkleRescueDelayMs: 20 });
     const driver = new BotDriver(room, {
-      firstRollDelayMinMs: 0, firstRollDelayMaxMs: 0, postRollDelayMinMs: 0, postRollDelayMaxMs: 0,
+      firstRollDelayMinMs: 0, firstRollDelayMaxMs: 0, postRollDelayMinMs: 0, postRollDelayMaxMs: 0, previewMs: 0,
     });
     room.setStateChangedHandler(() => {
       if (room.phase === 'finished') {
@@ -221,7 +223,8 @@ function playBotGame(badges, target = GAME_MODES.badge.defaultTarget) {
       room._setupBadgeOriginal(p);
       p.isBot = true;
     };
-    room.handleMessage(room.players[0], { type: 'start_game', payload: { mode: 'badge', targetScore: target } });
+    room.settings = { mode: 'badge', targetScore: target, tier: 'tin' };
+    room._startGame();
     const guard = setTimeout(() => {
       driver.cancel();
       reject(new Error(`game did not finish: ${JSON.stringify({ badges, turn: room.turn, last: room.history.slice(-3) })}`));

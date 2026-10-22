@@ -10,7 +10,7 @@ import { BADGES } from '../server/engine/badges.js';
 import { GAME_MODES } from '../server/engine/rules.js';
 
 const GAMES = Number(process.argv[2]) || 400;
-const ZERO = { firstRollDelayMinMs: 0, firstRollDelayMaxMs: 0, postRollDelayMinMs: 0, postRollDelayMaxMs: 0 };
+const ZERO = { firstRollDelayMinMs: 0, firstRollDelayMaxMs: 0, postRollDelayMinMs: 0, postRollDelayMaxMs: 0, previewMs: 0 };
 
 function botPlayer(i) {
   return {
@@ -37,7 +37,8 @@ function play(badgeId) {
       if (p.id === 'p1') Object.assign(p, { gameBadge: null, badgeCharges: 0, shield: 0, totalScore: 0 });
       p.isBot = true;
     };
-    room.handleMessage(room.players[0], { type: 'start_game', payload: { mode: 'badge', targetScore: GAME_MODES.badge.defaultTarget } });
+    room.settings = { mode: 'badge', targetScore: GAME_MODES.badge.defaultTarget, tier: 'tin' };
+    room._startGame();
   });
 }
 

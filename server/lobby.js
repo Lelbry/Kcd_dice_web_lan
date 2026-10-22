@@ -6,6 +6,17 @@ const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const CODE_LENGTH = 5;
 const EMPTY_LOBBY_TTL_MS = 10 * 60 * 1000;
 
+// KCD_BOT_SPEED=4 makes bots think 4x faster (used by the e2e tests); unset in production.
+function botTiming() {
+  const speed = Number(process.env.KCD_BOT_SPEED) || 1;
+  if (speed === 1) return {};
+  const t = (ms) => Math.round(ms / speed);
+  return {
+    firstRollDelayMinMs: t(600), firstRollDelayMaxMs: t(1200),
+    postRollDelayMinMs: t(2500), postRollDelayMaxMs: t(3500), previewMs: t(1000),
+  };
+}
+
 function generateCode() {
   let code = '';
   for (let i = 0; i < CODE_LENGTH; i++) {
@@ -29,7 +40,7 @@ export class LobbyManager {
     if (this.lobbies.has(code)) return null;
 
     const room = new GameRoom();
-    const botDriver = new BotDriver(room);
+    const botDriver = new BotDriver(room, botTiming());
     room.setStateChangedHandler(() => botDriver.tick());
 
     const entry = { room, botDriver, code, createdAt: Date.now(), cleanupTimer: null };

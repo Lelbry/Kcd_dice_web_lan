@@ -1,12 +1,14 @@
 import { TARGET_OPTIONS, DICE_COUNT, GAME_MODES, GAME_MODE_IDS, DEFAULT_GAME_MODE } from './engine/rules.js';
 import { validateLoadoutArray } from './engine/dice-types.js';
-import { isValidBadge } from './engine/badges.js';
+import { isValidBadge, BADGE_TIERS } from './engine/badges.js';
 
 export const ClientMsg = {
   HELLO: 'hello',
   CREATE_LOBBY: 'create_lobby',
   JOIN_LOBBY: 'join_lobby',
-  START_GAME: 'start_game',
+  START_GAME: 'start_game', // retired: the game starts when both players are ready
+  SET_SETTINGS: 'set_settings',
+  SET_READY: 'set_ready',
   ROLL: 'roll',
   SCORE_AND_ROLL: 'score_and_roll',
   SCORE_AND_BANK: 'score_and_bank',
@@ -70,12 +72,30 @@ export function validateSetProfile(payload) {
   return Object.keys(out).length === 0 ? null : out;
 }
 
-export function validateStartGame(payload) {
-  const mode = GAME_MODE_IDS.includes(payload?.mode) ? payload.mode : DEFAULT_GAME_MODE;
-  const modeCfg = GAME_MODES[mode];
-  const t = payload?.targetScore;
-  if (!modeCfg.targets.includes(t)) return null;
-  return { targetScore: t, mode };
+// Lobby settings change: any subset of mode / targetScore / tier, merged onto current settings.
+// A target that does not fit the (new) mode falls back to that mode's default target.
+export function validateSettings(payload, current) {
+  if (!payload || typeof payload !== 'object') return null;
+  const out = { mode: current.mode, targetScore: current.targetScore, tier: current.tier };
+  if (payload.mode !== undefined) {
+    if (!GAME_MODE_IDS.includes(payload.mode)) return null;
+    out.mode = payload.mode;
+  }
+  if (payload.tier !== undefined) {
+    if (!BADGE_TIERS.includes(payload.tier)) return null;
+    out.tier = payload.tier;
+  }
+  const cfg = GAME_MODES[out.mode];
+  if (payload.targetScore !== undefined) {
+    if (!cfg.targets.includes(payload.targetScore)) return null;
+    out.targetScore = payload.targetScore;
+  }
+  if (!cfg.targets.includes(out.targetScore)) out.targetScore = cfg.defaultTarget;
+  return out;
+}
+
+export function validateSetReady(payload) {
+  return typeof payload?.ready === 'boolean' ? { ready: payload.ready } : null;
 }
 
 export function validateLoadout(payload) {

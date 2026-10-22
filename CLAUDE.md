@@ -22,7 +22,7 @@ Production: `https://kcddice.ru` (owner — пользователь, депло
   отступ в блоке `.no-flex-gap` в конце `main.css` (класс ставит скрипт в `index.html`).
   Проверяет `tests/compat.test.js`
 - `npm start` — поднимает сервер на `0.0.0.0:8080` (переопределить: `npm start -- --port 3000`)
-- `npm test` — `node:test` по `tests/{scoring,validate,bot,color,weights,balance,badges,compat,music,scatter,gzip}.test.js`
+- `npm test` — `node:test` по `tests/{scoring,validate,bot,color,weights,balance,badges,compat,music,scatter,gzip,lobby}.test.js`
 - `npm run test:e2e` — Playwright UI smoke (`tests/e2e/`), сам поднимает сервер на :8091
 - Дополнительные ручные скрипты: `tests/ws-smoke.mjs`, `tests/bot-smoke.mjs`, `tests/rng-audit.mjs`, `scripts/simulate.js`
 - Dev-сервер в этой сессии запускать через `preview_start { name: "kcd2-dice" }`, если
@@ -39,12 +39,16 @@ Production: `https://kcddice.ru` (owner — пользователь, депло
   `banked`, `won`, `surrendered`, `select_preview`, …).
 - **Lobby:** `LobbyManager` в `server/lobby.js`. 5-символьный код
   (`A-Z` без I/O + `2-9`), пустая комната сносится через 10 минут.
+  Режим, цель и уровень блях — общие `room.settings` (`set_settings`), старт —
+  когда оба нажали «Готов» (`set_ready`): с ботом сразу, у двух людей после
+  отсчёта 3 с. `start_game` больше нет.
 - **Room:** `server/room.js`. FSM `lobby → playing → finished`, up to 2 игроков
   (`MAX_PLAYERS = 2`), reconnect-grace 60s, farkle-pass delay 3.5s, история
   последних 50 событий.
 - **Bot:** `server/bot.js`. Личность (`mood` / `firstName` / `color`) рандомится в
-  `addBot` и при `_newGame`. Loadout бота в pocket-режиме генерится в
-  `generateBotLoadout`. Решения — `decideBotAction` с порогом по настроению,
+  `addBot` и при `_newGame`. Loadout бота — `generateBotLoadout`: ровно 3 разные
+  шулерские из `BOT_DICE_POOL` (часто дают 1 или 5) или сет Лю+Ци+Фер. Перед
+  ходом бот показывает свой выбор (`select_preview`, `previewMs`). Решения — `decideBotAction` с порогом по настроению,
   `BotDriver.tick` подписан на `_onStateChanged` комнаты.
 - **Клиент:** `public/js/{main,net,state,ui,color,music}.js`. `Store` в `state.js`
   держит snapshot сервера + локальный selection + loadout (сохраняется в
@@ -129,7 +133,7 @@ Production: `https://kcddice.ru` (owner — пользователь, депло
 
 При изменении любого CSS/JS в `public/` менять `?v=X.Y.Z` в трёх местах
 `public/index.html` одновременно (`main.css`, `dice.css`, `main.js`). Иначе у
-пользователей будет старый кэш. Сейчас стоит `?v=2.11.0`. Вложенные модули
+пользователей будет старый кэш. Сейчас стоит `?v=2.12.0`. Вложенные модули
 (`ui.js`, `engine/*.js`, …) без версии — сервер отдаёт `.js/.css/.html` с
 `Cache-Control: no-cache`, браузер и Cloudflare перепроверяют их по ETag.
 После деплоя, меняющего экспорты модулей, один раз сделать Purge Cache в Cloudflare. Для крупных релизов

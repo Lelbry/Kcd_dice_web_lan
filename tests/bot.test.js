@@ -289,3 +289,66 @@ test('all moods have valid labels and descriptions', () => {
     assert.ok(MOODS[k].description.length > 0);
   }
 });
+
+// --- Bot loadout and visible selection ------------------------------------
+
+import { generateBotLoadout, BOT_DICE_POOL, BotDriver } from '../server/bot.js';
+import { DICE_TYPES_MAP, MAX_SPECIAL_DICE, validateLoadoutArray } from '../server/engine/dice-types.js';
+import { GameRoom } from '../server/room.js';
+
+test('bot loadout: always exactly three different useful cheating dice in pocket and badge modes', () => {
+  let sets = 0;
+  for (const mode of ['pocket', 'badge']) {
+    for (let i = 0; i < 2000; i++) {
+      const l = generateBotLoadout(mode);
+      assert.ok(validateLoadoutArray(l, mode), l.join(','));
+      const special = l.filter((id) => DICE_TYPES_MAP[id].special);
+      assert.equal(special.length, MAX_SPECIAL_DICE, l.join(','));
+      assert.equal(new Set(special).size, special.length);
+      const isSet = ['lu', 'qi', 'fer'].every((id) => special.includes(id));
+      if (isSet) sets++;
+      else for (const id of special) assert.ok(BOT_DICE_POOL.includes(id), `${id} is not in the bot pool`);
+    }
+  }
+  assert.ok(sets > 400 && sets < 1200, `demon set taken ${sets} times out of 4000`);
+  for (const bad of ['unlucky', 'unlucky_alt', 'even', 'charioteer', 'grozav_lucky']) assert.ok(!BOT_DICE_POOL.includes(bad), bad);
+});
+
+test('bot shows its selection to the opponent before scoring it', async () => {
+  const room = new GameRoom({ farklePassDelayMs: 0, startCountdownMs: 0 });
+  const driver = new BotDriver(room, {
+    firstRollDelayMinMs: 0, firstRollDelayMaxMs: 0, postRollDelayMinMs: 0, postRollDelayMaxMs: 0, previewMs: 5,
+  });
+  const seen = [];
+  const human = room.addPlayer('h', 'Human', { send: (m) => seen.push(JSON.parse(m)) }).player;
+  room.addBot();
+  room.setStateChangedHandler(() => driver.tick());
+  const bot = room.players.find((p) => p.isBot);
+  const original = room.handleMessage.bind(room);
+  const checks = [];
+  room.handleMessage = (player, msg) => {
+    if (player === bot && (msg.type === 'score_and_roll' || msg.type === 'score_and_bank')) {
+      const previews = seen.filter((m) => m.type === 'event' && m.payload.type === 'select_preview');
+      const last = previews[previews.length - 1];
+      checks.push(!!last && last.payload.playerId === bot.id && last.payload.selection.join(',') === msg.payload.selection.join(','));
+    }
+    return original(player, msg);
+  };
+  room.handleMessage(human, { type: 'set_ready', payload: { ready: true } });
+  room.currentPlayerIdx = room.players.indexOf(bot);
+  room.turn = room._emptyTurn();
+  driver.tick();
+  const deadline = Date.now() + 3000;
+  while (checks.length < 3 && Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 10));
+    // Hand the turn straight back to the bot whenever it passes, so it keeps scoring.
+    if (room._currentPlayer() !== bot && !room.farkleTimer) {
+      room.currentPlayerIdx = room.players.indexOf(bot);
+      room.turn = room._emptyTurn();
+      driver.tick();
+    }
+  }
+  driver.cancel();
+  assert.ok(checks.length >= 3, `only ${checks.length} bot actions`);
+  assert.ok(checks.every(Boolean), JSON.stringify(checks));
+});

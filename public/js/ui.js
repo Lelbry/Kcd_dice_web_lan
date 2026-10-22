@@ -10,20 +10,59 @@ import { scatterPositions, SCATTER_SIZES, MARKER_H } from './scatter.js';
 
 const DEFAULT_DICE_COLOR = '#f4e8c1';
 
-function populateTargets(mode) {
+function populateTargets(mode, target) {
   const targetSelect = document.getElementById('target-select');
   const modeCfg = GAME_MODES[mode] || GAME_MODES.classic;
-  const current = Number(targetSelect.value);
-  targetSelect.innerHTML = '';
-  const canon = modeCfg.canonTargets || [];
-  for (const t of modeCfg.targets) {
-    const opt = document.createElement('option');
-    opt.value = String(t);
-    opt.textContent = String(t);
-    targetSelect.appendChild(opt);
+  const key = modeCfg.targets.join(',');
+  if (targetSelect.dataset.options !== key) {
+    targetSelect.dataset.options = key;
+    targetSelect.innerHTML = '';
+    for (const t of modeCfg.targets) {
+      const opt = document.createElement('option');
+      opt.value = String(t);
+      opt.textContent = String(t);
+      targetSelect.appendChild(opt);
+    }
   }
-  if (modeCfg.targets.includes(current)) targetSelect.value = String(current);
-  else targetSelect.value = String(modeCfg.defaultTarget);
+  const value = modeCfg.targets.indexOf(target) !== -1 ? target : modeCfg.defaultTarget;
+  if (targetSelect.value !== String(value)) targetSelect.value = String(value);
+}
+
+// Countdown before a game between two ready humans; the server sends how much is left.
+let _countdownEnd = 0;
+let _countdownTimer = null;
+
+function lobbyStatusText(state, store) {
+  const me = state.players.find((p) => p.id === store.myPlayerId);
+  if (_countdownEnd) {
+    const left = Math.max(1, Math.ceil((_countdownEnd - Date.now()) / 1000));
+    return `Все готовы — игра начнётся через ${left}…`;
+  }
+  if (state.players.length < 2) return 'Пригласите соперника по ссылке или добавьте бота.';
+  if (!state.players.every((p) => p.connected)) return 'Ждём, пока соперник переподключится…';
+  if (me && !me.ready) return 'Соберите кости и нажмите «Готов».';
+  return 'Вы готовы. Ждём соперника…';
+}
+
+let _lobbyView = null;
+
+function renderLobbyStatus(state, store) {
+  const status = document.getElementById('lobby-status');
+  _lobbyView = { state, store };
+  if (state.countdownMs === null || state.countdownMs === undefined) {
+    _countdownEnd = 0;
+    if (_countdownTimer) { clearInterval(_countdownTimer); _countdownTimer = null; }
+  } else {
+    _countdownEnd = Date.now() + state.countdownMs;
+    if (!_countdownTimer) {
+      _countdownTimer = setInterval(() => {
+        if (!_countdownEnd || !_lobbyView) return;
+        status.textContent = lobbyStatusText(_lobbyView.state, _lobbyView.store);
+      }, 200);
+    }
+  }
+  status.textContent = lobbyStatusText(state, store);
+  status.classList.toggle('counting', !!_countdownEnd);
 }
 
 function getBrightness() {
@@ -130,6 +169,12 @@ function renderLobby(state, store) {
     const youBadge = p.id === store.myPlayerId ? ' <span class="you">(вы)</span>' : '';
     const botBadge = p.isBot ? ' <span class="bot-badge" title="бот">🤖</span>' : '';
     row.innerHTML = `<span class="dot"></span><span class="name">${escapeHtml(p.name)}</span>${botBadge}${youBadge}`;
+    if (!p.isBot && state.players.length > 1) {
+      const mark = document.createElement('span');
+      mark.className = 'ready-mark' + (p.ready ? ' ready' : '');
+      mark.textContent = p.ready ? '✓ готов' : 'выбирает…';
+      row.appendChild(mark);
+    }
     if (p.isBot) {
       const removeBtn = document.createElement('button');
       removeBtn.className = 'ghost small';
@@ -156,35 +201,37 @@ function renderLobby(state, store) {
     playersEl.appendChild(row);
   }
 
+  // Mode, target and badge tier are shared lobby settings: show the server's values.
+  const settings = state.settings || { mode: store._selectedMode || DEFAULT_GAME_MODE, targetScore: 0, tier: 'tin' };
+  const currentMode = settings.mode;
   const modeSelector = document.getElementById('mode-selector');
-  if (modeSelector && !modeSelector.dataset.bound) {
-    modeSelector.dataset.bound = '1';
-    modeSelector.addEventListener('change', (e) => {
-      const radio = e.target.closest('input[name="game-mode"]');
-      if (!radio) return;
-      store.setSelectedMode(radio.value);
-      populateTargets(radio.value);
-    });
-  }
-
-  const currentMode = store._selectedMode || DEFAULT_GAME_MODE;
-  const modeRadio = modeSelector && modeSelector.querySelector(`input[value="${currentMode}"]`);
-  if (modeRadio && !modeRadio.checked) modeRadio.checked = true;
   if (modeSelector) {
+    const pick = (name, value) => {
+      const radio = modeSelector.querySelector(`input[name="${name}"][value="${value}"]`);
+      if (radio && !radio.checked) radio.checked = true;
+    };
+    pick('game-mode', currentMode);
+    pick('badge-tier', settings.tier);
     modeSelector.querySelectorAll('.mode-option').forEach((opt) => {
       const input = opt.querySelector('input');
       opt.classList.toggle('checked', !!input && input.checked);
     });
   }
+  const tierSelector = document.getElementById('tier-selector');
+  if (tierSelector) tierSelector.hidden = !(GAME_MODES[currentMode] && GAME_MODES[currentMode].badges);
 
   const loadoutEl = document.getElementById('dice-loadout');
   if (loadoutEl) loadoutEl.hidden = false;
   renderLoadoutTexts(currentMode);
 
-  populateTargets(currentMode);
+  populateTargets(currentMode, settings.targetScore);
 
-  const startBtn = document.getElementById('start-btn');
-  startBtn.disabled = state.players.length < 2 || !state.players.every((p) => p.connected);
+  const me = state.players.find((p) => p.id === store.myPlayerId);
+  const readyBtn = document.getElementById('ready-btn');
+  readyBtn.disabled = state.players.length < 2 || !state.players.every((p) => p.connected);
+  readyBtn.textContent = me && me.ready ? 'Не готов' : 'Готов';
+  readyBtn.classList.toggle('is-ready', !!(me && me.ready));
+  renderLobbyStatus(state, store);
 
   renderLoadout(store);
   renderBadgeLobby(store, currentMode);
@@ -583,7 +630,8 @@ function dieLabel(dt, pos, dieSize, scatter, areaW) {
   tag.style.left = `${Math.min(Math.max(centre, half), areaW - half)}px`;
   tag.style.top = `${pos.y + dieSize + MARKER_H}px`;
   tag.style.height = `${scatter.labelH}px`;
-  tag.style.lineHeight = `${scatter.labelH}px`;
+  // The tag is border-box with a 1px border: the text line is 2px shorter than the tag, or it sits low.
+  tag.style.lineHeight = `${scatter.labelH - 2}px`;
   return tag;
 }
 

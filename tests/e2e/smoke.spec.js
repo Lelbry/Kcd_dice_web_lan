@@ -63,7 +63,7 @@ test('pocket game with pie dice renders pie glyphs and plays to a win', async ({
   await expect(pieSlots.first().locator('svg').first()).toBeVisible();
   await expect(pieSlots.first().locator('.pip')).toHaveCount(0);
 
-  await page.locator('#start-btn').click();
+  await page.locator('#ready-btn').click();
   await expect(page.locator('#game')).toBeVisible();
 
   let sawPieOnTable = false;
@@ -132,7 +132,7 @@ test('classic mode lets you restyle dice with cosmetic dice only', async ({ page
   await pickDie(page, 1, 'artist_r');
   await expect(page.locator('#loadout-slots .die[data-type="artist_r"]')).toHaveCount(2);
 
-  await page.locator('#start-btn').click();
+  await page.locator('#ready-btn').click();
   await expect(page.locator('#game')).toBeVisible();
 
   const myRoll = page.locator('#actions-panel [data-action="roll"]');
@@ -159,7 +159,7 @@ test('badge mode: pick a badge, use it on a die, read about it in help', async (
   await page.locator('#badge-catalog .badge-card[data-badge="transmutation"]').click();
   await expect(page.locator('#badge-slot')).toContainText('Бляха превращения');
 
-  await page.locator('#start-btn').click();
+  await page.locator('#ready-btn').click();
   await expect(page.locator('#badge-bar')).toBeVisible();
   await expect(page.locator('.badge-chip.mine')).toContainText('Бляха превращения');
   await expect(page.locator('.badge-chip.theirs .badge-medallion')).toBeVisible();
@@ -180,7 +180,8 @@ test('badge mode: pick a badge, use it on a die, read about it in help', async (
   await expect(page.locator('.badge-chip.mine .charge.full')).toHaveCount(0);
   await expect(page.locator('#dice-area .die.badge-target')).toHaveCount(0);
   await page.locator('#log-toggle').click();
-  await expect(page.locator('#log-panel')).toContainText('Бляха превращения — кость');
+  // The bot draws a random badge: its Бляха защиты may burn the transmutation, which is also a valid outcome.
+  await expect(page.locator('#log-panel')).toContainText(/Бляха превращения — кость|Бляха превращения сгорела/);
 
   await page.keyboard.press('KeyT');
   await page.locator('[data-help-tab="badges"]').click();
@@ -191,7 +192,7 @@ test('badge mode: pick a badge, use it on a die, read about it in help', async (
 test('phone layout: badges move into the score table and the action list', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await openLobbyWithBot(page, 'badge');
-  await page.locator('#start-btn').click();
+  await page.locator('#ready-btn').click();
   await expect(page.locator('#game')).toBeVisible();
   await expect(page.locator('#badge-bar')).toBeHidden();
   const row = page.locator('.score-table .badge-row');
@@ -256,7 +257,8 @@ async function reachOwnSixDice(page) {
   const roll = page.locator('#actions-panel [data-action="roll"]');
   const myDice = page.locator('#dice-area .die:not(.disabled)');
   for (let attempt = 0; attempt < 40; attempt++) {
-    await expect(roll).toBeEnabled({ timeout: 30000 });
+    await expect(page.locator('#finished-modal')).toBeHidden();
+    await expect(roll).toBeEnabled({ timeout: 45000 });
     await roll.click();
     try {
       await expect(myDice).toHaveCount(6, { timeout: 4000 });
@@ -281,7 +283,10 @@ for (const vp of [{ name: 'phone', width: 390, height: 844 }, { name: 'desktop',
     await pickDie(page, 0, 'lu');
     await pickDie(page, 1, 'qi');
     await pickDie(page, 2, 'fer');
-    await page.locator('#start-btn').click();
+    // The longest game, so the bot cannot win while we wait for a turn with six fresh dice.
+    await page.locator('#target-select').selectOption('15000');
+    await expect(page.locator('#target-select')).toHaveValue('15000');
+    await page.locator('#ready-btn').click();
     await expect(page.locator('#game')).toBeVisible();
     await reachOwnSixDice(page);
 
@@ -322,3 +327,47 @@ for (const vp of [{ name: 'phone', width: 390, height: 844 }, { name: 'desktop',
     expect(errors).toEqual([]);
   });
 }
+
+test('two players: shared settings, both press «Готов», countdown, game starts for both', async ({ browser }) => {
+  const ctxA = await browser.newContext();
+  const ctxB = await browser.newContext();
+  const a = await ctxA.newPage();
+  const b = await ctxB.newPage();
+  const errors = [];
+  for (const p of [a, b]) p.on('pageerror', (e) => errors.push(e.message));
+
+  await a.goto('/');
+  await a.evaluate(() => localStorage.clear());
+  await a.reload();
+  await a.locator('#create-lobby-btn').click();
+  const code = (await a.locator('#lobby-code-text').textContent()).trim();
+  expect(code).toMatch(/^[A-Z2-9]{5}$/);
+  await b.goto(`/?lobby=${code}`);
+  await expect(b.locator('#lobby-players .lobby-player:not(.waiting)')).toHaveCount(2);
+
+  // A picks the mode; B's lobby follows.
+  await a.locator('input[name="game-mode"][value="badge"]').check();
+  await expect(b.locator('input[name="game-mode"][value="badge"]')).toBeChecked();
+  await expect(b.locator('#tier-selector')).toBeVisible();
+  await b.locator('input[name="badge-tier"][value="gold"]').check();
+  await expect(a.locator('input[name="badge-tier"][value="gold"]')).toBeChecked();
+
+  await a.locator('#ready-btn').click();
+  await expect(a.locator('#ready-btn')).toHaveText('Не готов');
+  await expect(b.locator('#lobby-players .ready-mark.ready')).toHaveCount(1);
+
+  // Changing a shared setting clears everyone's ready.
+  await b.locator('#target-select').selectOption('12000');
+  await expect(a.locator('#target-select')).toHaveValue('12000');
+  await expect(a.locator('#ready-btn')).toHaveText('Готов');
+
+  await a.locator('#ready-btn').click();
+  await b.locator('#ready-btn').click();
+  await expect(a.locator('#lobby-status')).toContainText('игра начнётся через');
+  await expect(a.locator('#game')).toBeVisible({ timeout: 6000 });
+  await expect(b.locator('#game')).toBeVisible({ timeout: 6000 });
+  await expect(a.locator('#turn-indicator')).toContainText('Игра с бляхой');
+  expect(errors).toEqual([]);
+  await ctxA.close();
+  await ctxB.close();
+});
