@@ -245,12 +245,15 @@ store.subscribe(() => {
 
 function useBadge() {
   if (store.badgeTargeting) {
+    // Fortune / Wedding: the second press rerolls the picked dice; with nothing picked it cancels.
+    const picks = [...store.badgePicks];
     store.setBadgeTargeting(false);
+    if (picks.length) net.send({ type: 'activate_badge', payload: { diceIndices: picks } });
     return;
   }
   const act = store.state && activationState(store.state, store);
   if (!act) return;
-  if (act.needsDie) {
+  if (act.needsDie || act.needsDice) {
     store.setBadgeTargeting(true);
     return;
   }
@@ -258,6 +261,11 @@ function useBadge() {
 }
 
 store.onBadgeTarget = (diceIndex) => {
+  const act = store.state && activationState(store.state, store);
+  if (act && act.needsDice) {
+    store.toggleBadgePick(diceIndex, act.maxDice);
+    return;
+  }
   store.setBadgeTargeting(false);
   net.send({ type: 'activate_badge', payload: { diceIndex } });
 };
@@ -403,7 +411,9 @@ function bindUI() {
     }
   });
 
-  document.getElementById('badge-slot').addEventListener('click', () => openBadgePicker(store));
+  document.getElementById('badge-slot').addEventListener('click', () => {
+    openBadgePicker(store, (store.state && store.state.settings && store.state.settings.tier) || 'tin');
+  });
   renderBadgeHelp(document.getElementById('help-badges'));
   document.querySelector('.help-tabs').addEventListener('click', (e) => {
     const tab = e.target.closest('[data-help-tab]');

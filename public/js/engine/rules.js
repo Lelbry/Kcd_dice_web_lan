@@ -1,4 +1,6 @@
 export const DICE_COUNT = 6;
+// The Might and Bird King badges add a seventh die for a turn.
+export const MAX_DICE = 7;
 export const DICE_FACES = 6;
 
 export const GAME_MODES = {
@@ -55,6 +57,7 @@ export function multiplierForCount(n) {
   if (n === 4) return 2;
   if (n === 5) return 4;
   if (n === 6) return 8;
+  if (n === 7) return 16;
   return 0;
 }
 

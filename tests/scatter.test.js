@@ -25,7 +25,7 @@ const inside = (a, w, h) => a.l >= -TILT - 0.01 && a.t >= -TILT - 0.01 && a.r <=
 
 function check(areaW, areaH, size, { expectTags }) {
   for (let round = 0; round < ROUNDS; round++) {
-    for (let count = 1; count <= 6; count++) {
+    for (let count = 1; count <= 7; count++) {
       const result = scatterPositions(count, areaW, areaH, size);
       assert.equal(result.positions.length, count);
       if (expectTags) assert.ok(result.labelH > 0, `${areaW}x${areaH}: no room for tags with ${count} dice`);
@@ -47,13 +47,13 @@ function check(areaW, areaH, size, { expectTags }) {
   }
 }
 
-test('phone portrait tables (360 and 320 wide) fit six dice with tags, nothing overlaps', () => {
+test('phone portrait tables (360 and 320 wide) fit up to seven dice with tags, nothing overlaps', () => {
   check(344, 200, SCATTER_SIZES.phone, { expectTags: true });
   check(304, 200, SCATTER_SIZES.phone, { expectTags: true });
   check(344, 420, SCATTER_SIZES.phone, { expectTags: true });
 });
 
-test('desktop tables fit six dice with full-width tags, nothing overlaps', () => {
+test('desktop tables fit up to seven dice with tags, nothing overlaps', () => {
   check(700, 300, SCATTER_SIZES.desktop, { expectTags: true });
   check(560, 260, SCATTER_SIZES.desktop, { expectTags: true });
   const r = scatterPositions(6, 700, 300, SCATTER_SIZES.desktop);

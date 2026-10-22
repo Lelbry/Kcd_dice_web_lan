@@ -155,7 +155,7 @@ test('badge mode: pick a badge, use it on a die, read about it in help', async (
   await openLobbyWithBot(page, 'badge');
   await expect(page.locator('#badge-select')).toBeVisible();
   await page.locator('#badge-slot').click();
-  await expect(page.locator('#badge-catalog .badge-card')).toHaveCount(8);
+  await expect(page.locator('#badge-catalog .badge-card')).toHaveCount(14);
   await page.locator('#badge-catalog .badge-card[data-badge="transmutation"]').click();
   await expect(page.locator('#badge-slot')).toContainText('Бляха превращения');
 
@@ -185,7 +185,7 @@ test('badge mode: pick a badge, use it on a die, read about it in help', async (
 
   await page.keyboard.press('KeyT');
   await page.locator('[data-help-tab="badges"]').click();
-  await expect(page.locator('#help-badges .help-badge')).toHaveCount(8);
+  await expect(page.locator('#help-badges .help-badge')).toHaveCount(14);
   expect(errors).toEqual([]);
 });
 
@@ -370,4 +370,69 @@ test('two players: shared settings, both press «Готов», countdown, game s
   expect(errors).toEqual([]);
   await ctxA.close();
   await ctxB.close();
+});
+
+test('badge tiers: gold lobby shows gold badges, Fortune rerolls the dice you pick', async ({ page }) => {
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await openLobbyWithBot(page, 'badge');
+  await page.locator('input[name="badge-tier"][value="gold"]').check();
+  await expect(page.locator('#badge-slot .badge-medallion')).toHaveAttribute('data-tier', 'gold');
+  await expect(page.locator('#badge-slot')).toContainText('золотая · 3 заряда');
+
+  await page.locator('#badge-slot').click();
+  await expect(page.locator('#badge-picker-modal h2')).toContainText('золотая');
+  await expect(page.locator('#badge-catalog .badge-card[data-badge="headstart"]')).toContainText('1000');
+  await expect(page.locator('#badge-catalog .badge-card[data-badge="emperor"]')).toContainText('особая');
+  await page.locator('#badge-catalog .badge-card[data-badge="fortune"]').click();
+  await expect(page.locator('#badge-slot')).toContainText('до 3 выбранных костей');
+
+  await page.locator('#ready-btn').click();
+  await expect(page.locator('.badge-chip.mine .charge')).toHaveCount(2);
+
+  const roll = page.locator('#actions-panel [data-action="roll"]');
+  const useBtn = page.locator('.badge-chip.mine .badge-activate');
+  await expect.poll(async () => {
+    if (await roll.isVisible() && await roll.isEnabled()) await roll.click();
+    return useBtn.isEnabled();
+  }, { timeout: 90_000, intervals: [500] }).toBe(true);
+
+  await page.keyboard.press('KeyB');
+  const targets = page.locator('#dice-area .die.badge-target');
+  await expect(targets.first()).toBeVisible();
+  await expect(page.locator('.badge-target-hint')).toContainText('до 3 костей');
+  await expect(useBtn).toHaveText('Отмена');
+  await targets.nth(0).click();
+  await targets.nth(1).click();
+  await expect(page.locator('#dice-area .die.badge-picked')).toHaveCount(2);
+  await expect(useBtn).toHaveText('Перебросить (2)');
+  await useBtn.click();
+  await expect(page.locator('#dice-area .die.badge-target')).toHaveCount(0);
+  await expect(page.locator('.badge-chip.mine .charge.full')).toHaveCount(1);
+  await page.locator('#log-toggle').click();
+  await expect(page.locator('#log-panel')).toContainText(/Бляха фортуны — переброс \[\d, \d\] → \[\d, \d\]|Бляха фортуны сгорела/);
+  expect(errors).toEqual([]);
+});
+
+test('Might: armed before the roll, the turn is played with seven dice', async ({ page }) => {
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await openLobbyWithBot(page, 'badge');
+  await page.locator('#badge-slot').click();
+  await page.locator('#badge-catalog .badge-card[data-badge="might"]').click();
+  await page.locator('#ready-btn').click();
+  const roll = page.locator('#actions-panel [data-action="roll"]');
+  await expect(roll).toBeEnabled({ timeout: 45000 });
+  const useBtn = page.locator('.badge-chip.mine .badge-activate');
+  await expect(useBtn).toBeEnabled();
+  await useBtn.click();
+  // The bot may carry Бляха защиты and burn the charge; then the turn stays at six dice.
+  const burned = page.locator('#log-panel');
+  await expect(page.locator('.badge-chip.mine .charge.full')).toHaveCount(0);
+  const armed = await page.locator('.badge-chip.mine .badge-chip-flag.hot').count();
+  await roll.click();
+  await expect(page.locator('#dice-area .die')).toHaveCount(armed ? 7 : 6, { timeout: 5000 });
+  if (armed) await expect(page.locator('.badge-chip.mine')).toContainText('+1 кость в этом ходу');
+  else await expect(burned).toContainText('Бляха силы сгорела');
+  expect(errors).toEqual([]);
 });

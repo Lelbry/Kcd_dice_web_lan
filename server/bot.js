@@ -1,6 +1,6 @@
 import { randomInt } from 'node:crypto';
 import { scoreSelection } from './engine/scoring.js';
-import { scoreWithBadge, activationBlocker, BADGES_MAP } from './engine/badges.js';
+import { scoreWithBadge, activationBlocker, badgeStats, BADGES_MAP } from './engine/badges.js';
 import { ClientMsg } from './protocol.js';
 import { DICE_TYPES, DICE_SETS, MAX_SPECIAL_DICE, modeAllowsSpecialDice } from './engine/dice-types.js';
 
@@ -213,6 +213,7 @@ function badgeScorer(badgeId) {
 
 const BOT_DOUBLING_MIN_HOLD = 300;
 const BOT_RESCUE_MIN_ROUND = 250;
+const BOT_WARLORD_MIN_ROUND = 500;
 
 /**
  * Решение бота про активную бляху. Возвращает сообщение activate_badge или null.
@@ -222,15 +223,21 @@ export function decideBotBadge(snapshot, bot) {
   const badge = BADGES_MAP[bot.gameBadge];
   if (!badge || badge.kind !== 'active' || !(bot.badgeCharges > 0)) return null;
   const turn = snapshot.turn;
-  const ctx = { charges: bot.badgeCharges, turn, isMyTurn: snapshot.currentPlayerId === bot.id };
+  const tier = bot.gameBadgeTier;
+  const ctx = { charges: bot.badgeCharges, turn, isMyTurn: snapshot.currentPlayerId === bot.id, tier };
   const activate = (diceIndex) => (
     activationBlocker(badge.id, { ...ctx, diceIndex }) ? null : { type: ClientMsg.ACTIVATE_BADGE, payload: diceIndex === undefined ? {} : { diceIndex } }
+  );
+  const activateDice = (diceIndices) => (
+    activationBlocker(badge.id, { ...ctx, diceIndices }) ? null : { type: ClientMsg.ACTIVATE_BADGE, payload: { diceIndices } }
   );
 
   if (badge.id === 'resurrection') {
     if (!turn.isFarkle) return null;
     return turn.roundScore >= BOT_RESCUE_MIN_ROUND || turn.diceOnTable.length >= 3 ? activate() : null;
   }
+  // Might / Bird King: take the seventh die at the start of a turn while charges last.
+  if (badge.target === 'turnStart') return turn.awaitingFirstRoll ? activate() : null;
   if (turn.isFarkle || turn.awaitingFirstRoll) return null;
 
   const score = badgeScorer(bot.gameBadge);
@@ -239,8 +246,19 @@ export function decideBotBadge(snapshot, bot) {
     const held = score(selection.map((i) => turn.diceOnTable[i])).score;
     return held >= BOT_DOUBLING_MIN_HOLD ? activate() : null;
   }
-  // transmutation / exchange: fix the single die that keeps the bot from hot dice.
   const junk = turn.diceOnTable.map((_, i) => i).filter((i) => !selection.includes(i));
+  if (badge.id === 'warlord') {
+    // Arm it on a turn worth boosting: the round so far plus what the bot is about to hold.
+    const held = score(selection.map((i) => turn.diceOnTable[i])).score;
+    return turn.roundScore + held >= BOT_WARLORD_MIN_ROUND ? activate() : null;
+  }
+  if (badge.target === 'dice') {
+    // Fortune / Wedding: reroll the dice that do not score, if that is all that stands between the bot and hot dice.
+    const max = badgeStats(badge.id, tier).rerollMax;
+    if (junk.length >= 1 && junk.length <= max && turn.diceOnTable.length >= 3) return activateDice(junk);
+    return null;
+  }
+  // transmutation / exchange: fix the single die that keeps the bot from hot dice.
   const minTable = badge.id === 'transmutation' ? 2 : 3;
   if (junk.length === 1 && turn.diceOnTable.length >= minTable) return activate(junk[0]);
   return null;

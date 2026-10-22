@@ -32,6 +32,7 @@ export class Store {
     this._selectedMode = this._loadSelectedMode();
     this.myBadge = this._loadBadge();
     this.badgeTargeting = false;
+    this.badgePicks = new Set(); // dice chosen for Fortune / Wedding while targeting
     this.badgePulse = null;
     this.badgeFx = null;
     this.onBadgeTarget = null;
@@ -54,6 +55,13 @@ export class Store {
 
   setBadgeTargeting(on) {
     this.badgeTargeting = on;
+    this.badgePicks = new Set();
+    this._notify();
+  }
+
+  toggleBadgePick(idx, max) {
+    if (this.badgePicks.has(idx)) this.badgePicks.delete(idx);
+    else if (this.badgePicks.size < max) this.badgePicks.add(idx);
     this._notify();
   }
 
@@ -130,6 +138,7 @@ export class Store {
       this.selection.clear();
       this.opponentSelection.clear();
       this.badgeTargeting = false;
+      this.badgePicks = new Set();
     }
     if (prevPlayer !== newPlayer || !snapshot || snapshot.phase !== 'playing') {
       this.rolling = false;

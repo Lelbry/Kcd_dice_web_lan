@@ -125,3 +125,15 @@ test('generateBotLoadout: always valid for its mode', () => {
   const classic = generateBotLoadout('classic', () => 0.9);
   assert.ok(classic.every((id) => !DICE_TYPES.find((d) => d.id === id).special));
 });
+
+import { validateSelection, validateActivateBadge } from '../server/protocol.js';
+
+test('protocol: a seventh die (index 6) can be held and targeted; index 7 cannot', () => {
+  assert.deepEqual(validateSelection({ selection: [0, 6] }), { selection: [0, 6] });
+  assert.equal(validateSelection({ selection: [7] }), null);
+  assert.deepEqual(validateActivateBadge({ diceIndex: 6 }), { diceIndex: 6, diceIndices: null });
+  assert.deepEqual(validateActivateBadge({ diceIndices: [0, 6] }), { diceIndex: null, diceIndices: [0, 6] });
+  assert.equal(validateActivateBadge({ diceIndices: [1, 1] }), null);
+  assert.equal(validateActivateBadge({ diceIndices: [] }), null);
+  assert.deepEqual(validateActivateBadge({}), { diceIndex: null, diceIndices: null });
+});

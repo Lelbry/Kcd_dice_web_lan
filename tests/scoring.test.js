@@ -177,3 +177,13 @@ test('isFarkle: [4,6,2,3] = true', () => {
 test('isFarkle: empty roll = false (no farkle without rolling)', () => {
   assert.equal(isFarkle([]), false);
 });
+
+// Seven dice exist only with the Might / Bird King badges.
+test('seven dice: seven of a kind = base x16, the same farkle rules otherwise', () => {
+  assert.equal(scoreSelection([2, 2, 2, 2, 2, 2, 2]).score, 3200);
+  assert.equal(scoreSelection([1, 1, 1, 1, 1, 1, 1]).score, 16000);
+  assert.equal(scoreSelection([1, 2, 3, 4, 5, 6]).score, 1500);
+  assert.equal(isFarkle([2, 2, 2, 3, 4, 6, 6]), false);
+  assert.equal(isFarkle([1, 2, 3, 4, 5, 6, 6]), false);
+  assert.equal(isFarkle([2, 2, 3, 3, 4, 6, 6]), true);
+});

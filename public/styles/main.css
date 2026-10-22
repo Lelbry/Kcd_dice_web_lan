@@ -1117,15 +1117,27 @@ button.ghost:hover { color: var(--cream); border-color: var(--gold); }
 .badge-medallion svg { width: 62%; height: 62%; }
 .badge-medallion.large { width: 52px; height: 52px; }
 .badge-medallion.spent { filter: grayscale(0.9) brightness(0.7); }
-.badge-medallion[data-badge="defence"],
-.badge-medallion[data-badge="headstart"],
-.badge-medallion[data-badge="carpenter"],
-.badge-medallion[data-badge="executioner"] {
+/* Metal by tier: gold is the default palette above. */
+.badge-medallion[data-tier="silver"] {
   --medal-hi: #f2f4f7;
   --medal-mid: #a9b2bd;
   --medal-lo: #59626d;
   color: #232a33;
 }
+.badge-medallion[data-tier="tin"] {
+  --medal-hi: #d9dcd6;
+  --medal-mid: #8c918a;
+  --medal-lo: #4a4e49;
+  color: #1f221e;
+}
+.help-badge-tiers {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--gold);
+}
+.tier-options .mode-option[data-tier="tin"] .mode-name { color: #c9cdc6; }
+.tier-options .mode-option[data-tier="silver"] .mode-name { color: #e3e8ee; }
+.tier-options .mode-option[data-tier="gold"] .mode-name { color: var(--gold); }
 
 .badge-select {
   margin: 12px 0;
@@ -1227,18 +1239,13 @@ button.ghost:hover { color: var(--cream); border-color: var(--gold); }
   50%      { box-shadow: 0 0 12px 3px rgba(217,179,90,0.7); }
 }
 
+.turn-indicator.targeting {
+  background: linear-gradient(90deg, rgba(217,179,90,0.25), rgba(217,179,90,0.4), rgba(217,179,90,0.25));
+  border-color: var(--gold);
+}
 .badge-target-hint {
-  position: absolute;
-  top: 6px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 2;
-  padding: 4px 12px;
-  border-radius: 999px;
-  font-size: 12px;
-  color: var(--ink);
-  background: var(--gold);
-  white-space: nowrap;
+  color: var(--gold);
+  letter-spacing: 0.5px;
 }
 
 .overlay-badge {
@@ -1280,7 +1287,6 @@ button.ghost:hover { color: var(--cream); border-color: var(--gold); }
   .badge-bar { display: none !important; }
   .score-table .badge-row { display: table-row; }
   .action-btn.badge-action:not([hidden]) { display: flex; }
-  .badge-target-hint { white-space: normal; text-align: center; width: 90%; }
 }
 
 /* Help tabs */

@@ -16,7 +16,7 @@ import {
 } from './protocol.js';
 import { rollBotPersona, moodLabel, generateBotLoadout } from './bot.js';
 import { DICE_TYPES_MAP, DEFAULT_LOADOUT, rollWeighted, rollWeightsFor, sanitizeLoadout } from './engine/dice-types.js';
-import { BADGES, BADGES_MAP, DEFAULT_BADGE, DEFAULT_BADGE_TIER, canHoldWithBadge, activationBlocker } from './engine/badges.js';
+import { BADGES, BADGES_MAP, DEFAULT_BADGE, DEFAULT_BADGE_TIER, badgeStats, canHoldWithBadge, activationBlocker } from './engine/badges.js';
 
 const FARKLE_PASS_DELAY_MS = 3500;
 // A player holding a resurrection charge gets extra time to decide whether to spend it.
@@ -87,7 +87,16 @@ export class GameRoom {
       isFarkle: false,
       isHotDice: false,
       doubleArmed: false,
+      extraDice: 0, // Might / Bird King: normal dice added to this turn's throws
+      bankMultiplier: 1, // Warlord: applied to the round score when it is banked
     };
+  }
+
+  // Dice types for a full throw this turn: the loadout, shuffled, plus any extra dice from a badge.
+  _turnDiceTypes(player) {
+    const types = shuffleArray([...(player.gameLoadout || DEFAULT_LOADOUT)]);
+    for (let i = 0; i < this.turn.extraDice; i++) types.push('normal');
+    return types;
   }
 
   _badgesOn() {
@@ -433,11 +442,12 @@ export class GameRoom {
     }
     const id = p.isBot ? BADGES[randomInt(0, BADGES.length)].id : (BADGES_MAP[p.badge] ? p.badge : DEFAULT_BADGE);
     const badge = BADGES_MAP[id];
+    const stats = badgeStats(id, this.settings.tier);
     p.gameBadge = id;
     p.gameBadgeTier = this.settings.tier;
-    p.badgeCharges = badge.kind === 'active' ? badge.charges : 0;
-    p.shield = badge.shield || 0;
-    p.totalScore += badge.startBonus || 0;
+    p.badgeCharges = badge.kind === 'active' ? stats.charges : 0;
+    p.shield = stats.shield;
+    p.totalScore += stats.startBonus;
   }
 
   _activateBadge(player, payload) {
@@ -450,8 +460,11 @@ export class GameRoom {
       turn: this.turn,
       isMyTurn: this._currentPlayer()?.id === player.id,
       diceIndex: v.diceIndex,
+      diceIndices: badge && badge.target === 'dice' ? (v.diceIndices || []) : undefined,
+      tier: player.gameBadgeTier,
     });
     if (blocker) return this._sendError(player, blocker);
+    const stats = badgeStats(badge.id, player.gameBadgeTier);
 
     player.badgeCharges -= 1;
     const opponent = this.players.find((p) => p.id !== player.id);
@@ -471,14 +484,28 @@ export class GameRoom {
     } else if (badge.id === 'transmutation') {
       entry.diceIndex = v.diceIndex;
       entry.from = this.turn.diceOnTable[v.diceIndex];
-      this.turn.diceOnTable[v.diceIndex] = 5;
-      entry.to = 5;
+      this.turn.diceOnTable[v.diceIndex] = stats.toValue;
+      entry.to = stats.toValue;
     } else if (badge.id === 'exchange') {
       entry.diceIndex = v.diceIndex;
       entry.from = this.turn.diceOnTable[v.diceIndex];
       const typeId = this.turn.diceTypeIds[v.diceIndex] || 'normal';
       this.turn.diceOnTable[v.diceIndex] = rollWeighted(DICE_TYPES_MAP[typeId]?.weights || [1, 1, 1, 1, 1, 1]);
       entry.to = this.turn.diceOnTable[v.diceIndex];
+    } else if (badge.target === 'dice') {
+      // Fortune / Wedding: reroll the chosen dice, each with its own weights (a set counts only if all reroll).
+      const idx = v.diceIndices;
+      entry.diceIndices = [...idx];
+      entry.from = idx.map((i) => this.turn.diceOnTable[i]);
+      const weights = rollWeightsFor(idx.map((i) => this.turn.diceTypeIds[i] || 'normal'));
+      idx.forEach((i, k) => { this.turn.diceOnTable[i] = rollWeighted(weights[k]); });
+      entry.to = idx.map((i) => this.turn.diceOnTable[i]);
+    } else if (badge.target === 'turnStart') {
+      this.turn.extraDice = stats.extraDice;
+      entry.extraDice = stats.extraDice;
+    } else if (badge.id === 'warlord') {
+      this.turn.bankMultiplier = stats.bankMultiplier;
+      entry.multiplier = stats.bankMultiplier;
     } else if (badge.id === 'resurrection') {
       if (this.farkleTimer) { clearTimeout(this.farkleTimer); this.farkleTimer = null; }
       this.turn.isFarkle = false;
@@ -528,8 +555,7 @@ export class GameRoom {
     this.turn.awaitingFirstRoll = false;
     this.turn.isHotDice = false;
     this.turn.isFarkle = false;
-    const loadout = player.gameLoadout || DEFAULT_LOADOUT;
-    const shuffled = shuffleArray([...loadout]);
+    const shuffled = this._turnDiceTypes(player);
     this.turn.diceTypeIds = shuffled;
     this.turn.diceOnTable = rollDiceWeighted(shuffled);
     this._pushHistory({ type: 'rolled', playerId: player.id, dice: [...this.turn.diceOnTable] });
@@ -585,10 +611,12 @@ export class GameRoom {
       if (!canBank(this.turn.roundScore)) {
         return this._sendError(player, 'cannot_bank');
       }
-      player.totalScore += this.turn.roundScore;
-      const banked = this.turn.roundScore;
-      this._pushHistory({ type: 'banked', playerId: player.id, score: banked, total: player.totalScore });
-      this._broadcastEvent({ type: 'banked', playerId: player.id, score: banked, total: player.totalScore });
+      // Warlord: the banked round grows by its multiplier, rounded to the game's 50-point steps.
+      const multiplier = this.turn.bankMultiplier || 1;
+      const banked = multiplier > 1 ? Math.round((this.turn.roundScore * multiplier) / 50) * 50 : this.turn.roundScore;
+      player.totalScore += banked;
+      this._pushHistory({ type: 'banked', playerId: player.id, score: banked, total: player.totalScore, multiplier });
+      this._broadcastEvent({ type: 'banked', playerId: player.id, score: banked, total: player.totalScore, multiplier });
       if (checkWin(player.totalScore, this.targetScore)) {
         this.phase = 'finished';
         this.winnerId = player.id;
@@ -602,12 +630,11 @@ export class GameRoom {
     }
 
     // score_and_roll
-    const loadout = player.gameLoadout || DEFAULT_LOADOUT;
     if (this.turn.diceOnTable.length === 0) {
       this.turn.isHotDice = true;
       this.turn.lockedDice = [];
       this.turn.lockedDiceTypeIds = [];
-      const hotShuffled = shuffleArray([...loadout]);
+      const hotShuffled = this._turnDiceTypes(player);
       this.turn.diceTypeIds = hotShuffled;
       this.turn.diceOnTable = rollDiceWeighted(hotShuffled);
       this._pushHistory({ type: 'hot_dice', playerId: player.id });
