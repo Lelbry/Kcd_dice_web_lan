@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { parseArgs } from 'node:util';
 import { LobbyManager } from './lobby.js';
+import { gzipStatic } from './gzip-static.js';
 import { parseMessage, validateHello, ServerMsg, ClientMsg } from './protocol.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -23,6 +24,7 @@ const app = express();
 // Nested ES modules are imported without ?v=, so browsers and Cloudflare must revalidate
 // code on every load; otherwise a stale module breaks the whole import graph after a deploy.
 const REVALIDATE_RE = /\.(?:js|css|html)$/;
+app.use(gzipStatic(publicDir));
 app.use(express.static(publicDir, {
   setHeaders(res, filePath) {
     if (REVALIDATE_RE.test(filePath)) res.setHeader('Cache-Control', 'no-cache');
