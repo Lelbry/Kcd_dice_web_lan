@@ -4,8 +4,8 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Кости — KCD2</title>
-  <link rel="stylesheet" href="/styles/main.css?v=2.10.6" />
-  <link rel="stylesheet" href="/styles/dice.css?v=2.10.6" />
+  <link rel="stylesheet" href="/styles/main.css?v=2.11.0" />
+  <link rel="stylesheet" href="/styles/dice.css?v=2.11.0" />
   <script>
     // If the game script fails to start (old browser, stale cache, blocked file), say so on screen:
     // phones have no console to look at.
@@ -68,7 +68,7 @@
         // A failed module import only names main.js. Load every module on its own to find the one that breaks.
         // main.js is fetched but not imported: importing it would start a second copy of the game.
         var MODULES = ['engine/rules', 'engine/scoring', 'engine/validate', 'engine/dice-types', 'engine/badges',
-          'color', 'glyphs', 'infocard', 'music', 'net', 'state', 'badges', 'ui', 'main'];
+          'color', 'glyphs', 'infocard', 'music', 'net', 'scatter', 'state', 'badges', 'ui', 'main'];
         var dynImport = null;
         try { dynImport = new Function('u', 'return import(u)'); } catch (e) {}
         var found = [];
@@ -309,6 +309,7 @@
     <div class="modal" id="dice-picker-modal" hidden>
       <div class="modal-inner picker-inner">
         <h2 id="dice-picker-title">Выбрать кость</h2>
+        <div class="help-tabs picker-tabs" id="dice-picker-tabs" role="tablist" hidden></div>
         <div class="dice-catalog" id="dice-catalog"></div>
         <button data-close-modal class="primary">Закрыть</button>
       </div>
@@ -325,6 +326,6 @@
     <div id="reconnect-banner" hidden>Соединение прервано, переподключение…</div>
   </div>
 
-  <script type="module" src="/js/main.js?v=2.10.6"></script>
+  <script type="module" src="/js/main.js?v=2.11.0"></script>
 </body>
 </html>

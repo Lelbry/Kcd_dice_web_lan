@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import { strict as assert } from 'node:assert';
-import { DICE_TYPES, rollWeighted } from '../server/engine/dice-types.js';
+import { DICE_TYPES, DICE_SETS, rollWeighted, rollWeightsFor } from '../server/engine/dice-types.js';
 
 function distribution(weights, n) {
   const counts = [0, 0, 0, 0, 0, 0];
@@ -43,3 +43,41 @@ for (const dt of DICE_TYPES) {
     });
   });
 }
+
+const DEMONS = ['lu', 'qi', 'fer'];
+
+test('demon set: all three in one throw use the set weights, otherwise their own', () => {
+  const full = rollWeightsFor(['lu', 'qi', 'fer', 'normal', 'normal', 'normal']);
+  for (let i = 0; i < 3; i++) assert.deepEqual(full[i], DICE_SETS.demons.weights);
+  assert.deepEqual(full[3], [1, 1, 1, 1, 1, 1]);
+
+  const pair = rollWeightsFor(['lu', 'qi', 'normal']);
+  assert.deepEqual(pair[0], [1, 1, 1, 1, 1, 2]);
+  assert.deepEqual(pair[1], [1, 1, 1, 1, 1, 2]);
+  assert.deepEqual(rollWeightsFor(['fer'])[0], [1, 1, 1, 1, 1, 2]);
+  assert.deepEqual(rollWeightsFor(['nope'])[0], [1, 1, 1, 1, 1, 1]);
+});
+
+// 30k throws per case: sigma ~0.28pp, so a ±1.5pp band is >5 sigma wide.
+function sixRate(typeIds, n) {
+  let sixes = 0;
+  for (let t = 0; t < n; t++) {
+    const w = rollWeightsFor(typeIds);
+    if (rollWeighted(w[0]) === 6) sixes++;
+  }
+  return (sixes / n) * 100;
+}
+
+test('demon set: Lu rolls a six ~37.5% with its sisters, ~28.6% without', () => {
+  const together = sixRate([...DEMONS, 'normal'], 30_000);
+  const apart = sixRate(['lu', 'qi', 'normal'], 30_000);
+  assert.ok(Math.abs(together - 37.5) < 1.5, `together ${together.toFixed(2)}%`);
+  assert.ok(Math.abs(apart - 28.57) < 1.5, `apart ${apart.toFixed(2)}%`);
+});
+
+test('demon set members carry set: demons and the description mentions it', () => {
+  for (const dt of DICE_TYPES.filter((d) => DEMONS.includes(d.id))) {
+    assert.equal(dt.set, 'demons', dt.id);
+    assert.match(dt.description, /38%/, dt.id);
+  }
+});

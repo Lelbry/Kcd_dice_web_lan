@@ -14,7 +14,7 @@ import {
   DEFAULT_DICE_COLOR,
 } from './protocol.js';
 import { rollBotPersona, moodLabel, generateBotLoadout } from './bot.js';
-import { DICE_TYPES_MAP, DEFAULT_LOADOUT, rollWeighted, sanitizeLoadout } from './engine/dice-types.js';
+import { DICE_TYPES_MAP, DEFAULT_LOADOUT, rollWeighted, rollWeightsFor, sanitizeLoadout } from './engine/dice-types.js';
 import { BADGES, BADGES_MAP, DEFAULT_BADGE, canHoldWithBadge, activationBlocker } from './engine/badges.js';
 
 const FARKLE_PASS_DELAY_MS = 3500;
@@ -39,11 +39,7 @@ function shuffleArray(arr) {
 }
 
 function rollDiceWeighted(typeIds) {
-  return typeIds.map((id) => {
-    const dt = DICE_TYPES_MAP[id];
-    if (!dt) return randomInt(1, 7);
-    return rollWeighted(dt.weights);
-  });
+  return rollWeightsFor(typeIds).map((w) => rollWeighted(w));
 }
 
 export class GameRoom {

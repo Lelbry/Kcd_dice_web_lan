@@ -179,8 +179,11 @@ export class MusicPlayer {
 
   _applyVolume() {
     const v = this.muted ? 0 : this.volume;
+    // iOS ignores media volume (it is read-only there), so silence also goes through muted.
     this.bgAudio.volume = v;
     this.lacrAudio.volume = v;
+    this.bgAudio.muted = v === 0;
+    this.lacrAudio.muted = v === 0;
   }
 
   _playNextBg() {

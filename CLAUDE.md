@@ -22,7 +22,7 @@ Production: `https://kcddice.ru` (owner — пользователь, депло
   отступ в блоке `.no-flex-gap` в конце `main.css` (класс ставит скрипт в `index.html`).
   Проверяет `tests/compat.test.js`
 - `npm start` — поднимает сервер на `0.0.0.0:8080` (переопределить: `npm start -- --port 3000`)
-- `npm test` — `node:test` по `tests/{scoring,validate,bot,color,weights,balance,badges,compat}.test.js`
+- `npm test` — `node:test` по `tests/{scoring,validate,bot,color,weights,balance,badges,compat,music,scatter}.test.js`
 - `npm run test:e2e` — Playwright UI smoke (`tests/e2e/`), сам поднимает сервер на :8091
 - Дополнительные ручные скрипты: `tests/ws-smoke.mjs`, `tests/bot-smoke.mjs`, `tests/rng-audit.mjs`, `scripts/simulate.js`
 - Dev-сервер в этой сессии запускать через `preview_start { name: "kcd2-dice" }`, если
@@ -88,6 +88,12 @@ Production: `https://kcddice.ru` (owner — пользователь, депло
   Цвет должен быть насыщенным и уникальным. См. раздел «Как добавить новую
   кость» в `docs/DICE_REFERENCE.md`.
 - Веса — относительные целые. `rollWeighted` суммирует и бросает `Math.random()`.
+- **Сеты** (`DICE_SETS` в `dice-types.js`): если все кости сета катятся в одном
+  броске, у них веса сета (Лю+Ци+Фер → шестёрка 37.5%). Веса броска всегда брать
+  через `rollWeightsFor(typeIds)` — так делают `room.js` и `scripts/sim-core.js`.
+- Раскладка костей на столе — `public/js/scatter.js` (чистая геометрия, тест
+  `tests/scatter.test.js`): под каждой костью зарезервировано место под подпись
+  с названием, которая появляется у выбранной кости на своём ходу.
 
 ## Бляхи
 
@@ -123,7 +129,7 @@ Production: `https://kcddice.ru` (owner — пользователь, депло
 
 При изменении любого CSS/JS в `public/` менять `?v=X.Y.Z` в трёх местах
 `public/index.html` одновременно (`main.css`, `dice.css`, `main.js`). Иначе у
-пользователей будет старый кэш. Сейчас стоит `?v=2.10.6`. Вложенные модули
+пользователей будет старый кэш. Сейчас стоит `?v=2.11.0`. Вложенные модули
 (`ui.js`, `engine/*.js`, …) без версии — сервер отдаёт `.js/.css/.html` с
 `Cache-Control: no-cache`, браузер и Cloudflare перепроверяют их по ETag.
 После деплоя, меняющего экспорты модулей, один раз сделать Purge Cache в Cloudflare. Для крупных релизов

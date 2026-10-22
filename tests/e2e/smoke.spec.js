@@ -1,8 +1,17 @@
 import { test, expect } from '@playwright/test';
 
+// The picker splits cheating and cosmetic dice into tabs; open the one that has typeId.
+async function showCard(page, typeId) {
+  const card = page.locator(`#dice-catalog .dice-type-card[data-type="${typeId}"]`);
+  if (await card.count() === 0) {
+    await page.locator('#dice-picker-tabs .help-tab:not(.active)').click();
+  }
+  return card;
+}
+
 async function pickDie(page, slotIdx, typeId) {
   await page.locator('#loadout-slots .loadout-slot').nth(slotIdx).click();
-  await page.locator(`#dice-catalog .dice-type-card[data-type="${typeId}"]`).click();
+  await (await showCard(page, typeId)).click();
   await expect(page.locator('#dice-picker-modal')).toBeHidden();
 }
 
@@ -46,7 +55,7 @@ test('pocket game with pie dice renders pie glyphs and plays to a win', async ({
   // Each cheating die exists once: the second pie must be unavailable.
   await page.locator('#loadout-slots .loadout-slot').nth(1).click();
   await expect(page.locator('#dice-catalog .dice-type-card[data-type="pie"]')).toHaveClass(/disabled/);
-  await page.locator('#dice-catalog .dice-type-card[data-type="tooth"]').click();
+  await (await showCard(page, 'tooth')).click();
   await expect(page.locator('#dice-picker-modal')).toBeHidden();
 
   const pieSlots = page.locator('#loadout-slots .die[data-type="pie"]');
@@ -219,3 +228,97 @@ test('phone layout: the speaker button opens volume and brightness sliders', asy
   await page.locator('#lobby-select h1').click();
   await expect(panel).toBeHidden();
 });
+
+test('dice picker: cheating and cosmetic dice sit on separate tabs', async ({ page }) => {
+  await openLobbyWithBot(page, 'pocket');
+  await page.locator('#loadout-slots .loadout-slot').nth(0).click();
+  const tabs = page.locator('#dice-picker-tabs .help-tab');
+  await expect(tabs).toHaveCount(2);
+  await expect(tabs.nth(0)).toHaveClass(/active/);
+  await expect(tabs.nth(0)).toContainText('Шулерские');
+  await expect(page.locator('#dice-catalog .dice-type-card[data-type="loaded"]')).toBeVisible();
+  await expect(page.locator('#dice-catalog .dice-type-card[data-type="tooth"]')).toHaveCount(0);
+
+  await tabs.nth(1).click();
+  await expect(tabs.nth(1)).toHaveClass(/active/);
+  await expect(page.locator('#dice-catalog .dice-type-card[data-type="tooth"]')).toBeVisible();
+  await expect(page.locator('#dice-catalog .dice-type-card[data-type="loaded"]')).toHaveCount(0);
+
+  // A slot holding a cosmetic die reopens on the cosmetic tab.
+  await page.locator('#dice-catalog .dice-type-card[data-type="tooth"]').click();
+  await page.locator('#loadout-slots .loadout-slot').nth(0).click();
+  await expect(tabs.nth(1)).toHaveClass(/active/);
+  await page.keyboard.press('Escape');
+});
+
+// Plays until it is our turn with six fresh dice on the table that we may select.
+async function reachOwnSixDice(page) {
+  const roll = page.locator('#actions-panel [data-action="roll"]');
+  const myDice = page.locator('#dice-area .die:not(.disabled)');
+  for (let attempt = 0; attempt < 40; attempt++) {
+    await expect(roll).toBeEnabled({ timeout: 30000 });
+    await roll.click();
+    try {
+      await expect(myDice).toHaveCount(6, { timeout: 4000 });
+      return;
+    } catch {
+      // Farkle on the first roll: the bot plays its turn, then we roll again.
+    }
+  }
+  throw new Error('never got six selectable dice');
+}
+
+function overlap(a, b) {
+  return a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
+}
+
+for (const vp of [{ name: 'phone', width: 390, height: 844 }, { name: 'desktop', width: 1280, height: 800 }]) {
+  test(`${vp.name}: selected dice show their names under them without covering other dice`, async ({ page }) => {
+    await page.setViewportSize({ width: vp.width, height: vp.height });
+    const errors = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+    await openLobbyWithBot(page, 'pocket');
+    await pickDie(page, 0, 'lu');
+    await pickDie(page, 1, 'qi');
+    await pickDie(page, 2, 'fer');
+    await page.locator('#start-btn').click();
+    await expect(page.locator('#game')).toBeVisible();
+    await reachOwnSixDice(page);
+
+    const area = page.locator('#dice-area');
+    const dice = area.locator('.die');
+    const labels = area.locator('.die-label');
+    await expect(labels).toHaveCount(0);
+
+    for (let i = 0; i < 6; i++) await dice.nth(i).click();
+    await expect(labels).toHaveCount(6);
+    await page.waitForTimeout(400); // let the dice finish sliding into place
+
+    const names = (await labels.allTextContents()).sort();
+    expect(names).toEqual(['Лю', 'Обычная', 'Обычная', 'Обычная', 'Фер', 'Ци']);
+    await expect(area.locator('.die-label.special')).toHaveCount(3);
+
+    const areaBox = await area.boundingBox();
+    const dieBoxes = [];
+    for (let i = 0; i < 6; i++) dieBoxes.push(await dice.nth(i).boundingBox());
+    const tagBoxes = [];
+    for (let i = 0; i < 6; i++) tagBoxes.push(await labels.nth(i).boundingBox());
+    for (const t of tagBoxes) {
+      expect(t.x).toBeGreaterThanOrEqual(areaBox.x - 1);
+      expect(t.x + t.width).toBeLessThanOrEqual(areaBox.x + areaBox.width + 1);
+      expect(t.y + t.height).toBeLessThanOrEqual(areaBox.y + areaBox.height + 1);
+    }
+    for (let i = 0; i < 6; i++) {
+      for (let j = 0; j < 6; j++) {
+        if (i !== j) expect(overlap(tagBoxes[i], tagBoxes[j]), `tags ${i} and ${j} overlap`).toBe(false);
+        // Each tag sits under its own die; it must not cover any die.
+        expect(overlap(tagBoxes[i], dieBoxes[j]), `tag ${i} covers die ${j}`).toBe(false);
+      }
+    }
+    await page.screenshot({ path: test.info().outputPath(`labels-${vp.name}.png`) });
+
+    await dice.nth(0).click();
+    await expect(labels).toHaveCount(5);
+    expect(errors).toEqual([]);
+  });
+}

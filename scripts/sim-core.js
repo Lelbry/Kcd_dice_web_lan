@@ -1,15 +1,11 @@
 import { scoreSelection, isFarkle } from '../server/engine/scoring.js';
-import { DICE_TYPES_MAP, rollWeighted } from '../server/engine/dice-types.js';
+import { rollWeighted, rollWeightsFor } from '../server/engine/dice-types.js';
 import { chooseGreedySelection } from '../server/bot.js';
 
 const MAX_TURNS = 1000;
 
 function rollDiceWeighted(typeIds) {
-  return typeIds.map((id) => {
-    const dt = DICE_TYPES_MAP[id];
-    if (!dt) return Math.floor(Math.random() * 6) + 1;
-    return rollWeighted(dt.weights);
-  });
+  return rollWeightsFor(typeIds).map((w) => rollWeighted(w));
 }
 
 function shuffleArray(arr) {

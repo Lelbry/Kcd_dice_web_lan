@@ -129,8 +129,9 @@ export const DICE_TYPES = [
   {
     id: 'lu',
     name: 'Игральная кость Лю',
-    description: 'Первая из трех демонических костей.',
+    description: 'Первая из трех демонических костей. Если Лю, Ци и Фер катятся в одном броске, шестёрка выпадает чаще: 38% вместо 29%. Если одна из сестёр отложена, остальные — обычные шулерские кости.',
     weights: [1, 1, 1, 1, 1, 2],
+    set: 'demons',
     color: '#8b0000',
     special: true,
     faceGlyphs: { 6: 'sigil' },
@@ -138,8 +139,9 @@ export const DICE_TYPES = [
   {
     id: 'qi',
     name: 'Игральная кость Ци',
-    description: 'Вторая из демонических костей. Теряться любит, но когда она вместе со своими сестрами, то ой как сильна.',
+    description: 'Вторая из демонических костей. Теряться любит, но когда она вместе со своими сестрами, то ой как сильна. Если Лю, Ци и Фер катятся в одном броске, шестёрка выпадает чаще: 38% вместо 29%. Если одна из сестёр отложена, остальные — обычные шулерские кости.',
     weights: [1, 1, 1, 1, 1, 2],
+    set: 'demons',
     color: '#5a0f3a',
     special: true,
     faceGlyphs: { 6: 'sigil' },
@@ -147,8 +149,9 @@ export const DICE_TYPES = [
   {
     id: 'fer',
     name: 'Игральная кость Фер',
-    description: 'Третья, и последняя, из демонических игральных костей.',
+    description: 'Третья, и последняя, из демонических игральных костей. Если Лю, Ци и Фер катятся в одном броске, шестёрка выпадает чаще: 38% вместо 29%. Если одна из сестёр отложена, остальные — обычные шулерские кости.',
     weights: [1, 1, 1, 1, 1, 2],
+    set: 'demons',
     color: '#1a0033',
     special: true,
     faceGlyphs: { 6: 'sigil' },
@@ -382,6 +385,25 @@ export function sanitizeLoadout(loadout, mode) {
     specials++;
     counts[id] = (counts[id] || 0) + 1;
     return id;
+  });
+}
+
+// Dice that grow stronger together. When every member rolls in the same throw, each uses the set's weights;
+// if one of them was set aside, the rest roll with their own.
+export const DICE_SETS = {
+  demons: { members: ['lu', 'qi', 'fer'], weights: [1, 1, 1, 1, 1, 3] },
+};
+
+const FAIR_WEIGHTS = [1, 1, 1, 1, 1, 1];
+
+// Weights for each die of one throw, given the type ids of all dice rolling in it.
+export function rollWeightsFor(typeIds) {
+  return typeIds.map((id) => {
+    const dt = DICE_TYPES_MAP[id];
+    if (!dt) return FAIR_WEIGHTS;
+    const set = dt.set && DICE_SETS[dt.set];
+    if (set && set.members.every((m) => typeIds.indexOf(m) !== -1)) return set.weights;
+    return dt.weights;
   });
 }
 
