@@ -56,10 +56,10 @@ test('tiers: a higher tier never has fewer charges or a weaker effect; special b
   assert.equal(badgeStats('doubling', 'platinum').charges, 1);
 });
 
-test('emperor: three ones score 3000, and still combine with other dice', () => {
-  assert.equal(scoreWithBadge([1, 1, 1], 'emperor').score, 3000);
-  assert.equal(scoreWithBadge([1, 1, 1, 5], 'emperor').score, 3050);
-  assert.equal(scoreWithBadge([1, 1, 1, 1], 'emperor').score, 3100);
+test('emperor: three ones score 2000, and still combine with other dice', () => {
+  assert.equal(scoreWithBadge([1, 1, 1], 'emperor').score, 2000);
+  assert.equal(scoreWithBadge([1, 1, 1, 5], 'emperor').score, 2050);
+  assert.equal(scoreWithBadge([1, 1, 1, 1], 'emperor').score, 2100);
   assert.equal(scoreWithBadge([1, 1, 1], 'doubling').score, 1000);
 });
 
@@ -251,13 +251,13 @@ test('room: warlord grows the banked round by its tier, rounded to 50', () => {
   assert.equal(g.totalScore, 250);
 });
 
-test('room: emperor banks 3000 for three ones', () => {
+test('room: emperor banks 2000 for three ones', () => {
   const room = startBadgeRoom('emperor', 'headstart');
   const me = room.players[0];
   readyTable(room, [1, 1, 1, 2, 3, 4]);
   room.handleMessage(me, { type: 'score_and_bank', payload: { selection: [0, 1, 2] } });
   assert.deepEqual(errorsOf(me), []);
-  assert.equal(me.totalScore, 3000);
+  assert.equal(me.totalScore, 2000);
 });
 
 test('room: gold defence burns three activations', () => {

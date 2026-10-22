@@ -107,11 +107,11 @@ export const BADGES = [
   {
     id: 'emperor',
     name: 'Бляха императора',
-    description: 'Три единицы вместе дают 3000 очков вместо 1000.',
+    description: 'Три единицы вместе дают 2000 очков вместо 1000.',
     kind: 'passive',
     special: true,
     stats: {},
-    combos: [{ name: 'Императорская тройка', dice: [1, 1, 1], score: 3000 }],
+    combos: [{ name: 'Императорская тройка', dice: [1, 1, 1], score: 2000 }],
   },
   {
     id: 'carpenter',
