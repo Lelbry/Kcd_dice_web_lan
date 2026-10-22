@@ -22,7 +22,7 @@ Production: `https://kcddice.ru` (owner — пользователь, депло
   отступ в блоке `.no-flex-gap` в конце `main.css` (класс ставит скрипт в `index.html`).
   Проверяет `tests/compat.test.js`
 - `npm start` — поднимает сервер на `0.0.0.0:8080` (переопределить: `npm start -- --port 3000`)
-- `npm test` — `node:test` по `tests/{scoring,validate,bot,color,weights,balance,badges,compat,music,scatter}.test.js`
+- `npm test` — `node:test` по `tests/{scoring,validate,bot,color,weights,balance,badges,compat,music,scatter,gzip}.test.js`
 - `npm run test:e2e` — Playwright UI smoke (`tests/e2e/`), сам поднимает сервер на :8091
 - Дополнительные ручные скрипты: `tests/ws-smoke.mjs`, `tests/bot-smoke.mjs`, `tests/rng-audit.mjs`, `scripts/simulate.js`
 - Dev-сервер в этой сессии запускать через `preview_start { name: "kcd2-dice" }`, если
@@ -146,6 +146,8 @@ restart kcd-dice` (делает пользователь руками на VPS, 
 ## Полезные пути
 
 - `server/index.js` — HTTP + WS entry
+- `server/gzip-static.js` — отдаёт html/js/css из `public/` в gzip (только `node:zlib`, без npm-зависимостей:
+  часть сетей в РФ рвёт соединение после ~16 КБ, сжатые файлы влезают)
 - `server/room.js` — вся игровая FSM и broadcast
 - `server/bot.js` — AI, настроения, `BotDriver`, `generateBotLoadout`
 - `public/js/ui.js` — рендер (lobby, игра, loadout, picker, finished-modal)
