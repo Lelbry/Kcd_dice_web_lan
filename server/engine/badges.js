@@ -70,6 +70,11 @@ export const BADGES = [
   },
 ];
 
+// Badge rarity. Both players of a badge game play the same tier, chosen in the lobby settings.
+export const BADGE_TIERS = ['tin', 'silver', 'gold'];
+export const DEFAULT_BADGE_TIER = 'tin';
+export const BADGE_TIER_NAMES = { tin: 'Жестяная', silver: 'Серебряная', gold: 'Золотая' };
+
 export const BADGES_MAP = Object.fromEntries(BADGES.map((b) => [b.id, b]));
 export const DEFAULT_BADGE = 'doubling';
 

@@ -73,8 +73,12 @@ scripts/
 Фазы: `lobby → playing → finished → lobby (new_game)`.
 
 - **`lobby`**: игроки присоединились, можно `ADD_BOT`/`REMOVE_BOT`, `SET_LOADOUT`,
-  `SET_BADGE`, `SET_PROFILE`, `START_GAME`. Старт разрешён только если 2
-  коннектных игрока. На старте каждому игроку считается `gameLoadout` —
+  `SET_BADGE`, `SET_PROFILE`, `SET_SETTINGS`, `SET_READY`. Режим, цель и уровень
+  блях — общие настройки комнаты (`room.settings`); их изменение снимает «готов»
+  со всех людей, а смена своих костей или бляхи — с этого игрока. Когда оба
+  игрока подключены и готовы: с ботом игра стартует сразу (бот всегда готов),
+  у двух людей — после отсчёта `startCountdownMs` (3 с). Отказ от готовности,
+  отключение или смена настроек отменяют отсчёт. На старте каждому игроку считается `gameLoadout` —
   его `loadout`, очищенный под режим (`sanitizeLoadout`), — и бляха (`_setupBadge`).
 - **`playing`**: активный ход — `ROLL` → `SCORE_AND_ROLL` ×N → `SCORE_AND_BANK`
   или farkle (авто-pass через 3.5s; 6s, если у игрока есть заряд Бляхи
@@ -85,7 +89,11 @@ scripts/
 - **`finished`**: только `NEW_GAME` возвращает в lobby.
 
 Персона бота рандомится один раз при `addBot`/`_newGame` — не трогаем на
-`START_GAME`, иначе имя в лобби сменится после старта (прошлый баг).
+старте партии, иначе имя в лобби сменится после старта (прошлый баг).
+
+Бот перед каждым `score_and_*` сначала шлёт людям `select_preview` со своим
+выбором и делает ход через `previewMs` (1 с), чтобы соперник видел, что он
+откладывает. `KCD_BOT_SPEED=4` ускоряет ботов (так их запускают e2e-тесты).
 
 ## 4. Протокол
 
@@ -104,7 +112,9 @@ scripts/
 | `set_badge` | `{badgeId}` | любая (применяется на старте партии) |
 | `activate_badge` | `{diceIndex?}` — индекс кости для превращения/обмена | playing, режим `badge` |
 | `add_bot` / `remove_bot` | — | lobby |
-| `start_game` | `{mode, targetScore}` | lobby |
+| `set_settings` | `{mode?, targetScore?, tier?}` — общие для обоих; цель не из режима → его цель по умолчанию | lobby |
+| `set_ready` | `{ready: boolean}` — «готов» нужен, когда в комнате двое | lobby |
+| `start_game` | — снят: отвечает ошибкой `use_ready` | — |
 | `roll` | — | playing (свой ход, awaitingFirstRoll) |
 | `score_and_roll` | `{selection: [idx…]}` | playing (свой ход) |
 | `score_and_bank` | `{selection: [idx…]}` | playing (свой ход) |

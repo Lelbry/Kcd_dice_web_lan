@@ -117,6 +117,11 @@ export class Store {
   }
 
   setSnapshot(snapshot) {
+    // Mode is a shared lobby setting: follow the server so loadout and texts match the game that will start.
+    if (snapshot && snapshot.settings && GAME_MODES[snapshot.settings.mode] && snapshot.settings.mode !== this._selectedMode) {
+      this._selectedMode = snapshot.settings.mode;
+      try { localStorage.setItem(MODE_STORAGE_KEY, this._selectedMode); } catch {}
+    }
     const prevDice = diceKey(this.state);
     const newDice = diceKey(snapshot);
     const prevPlayer = this.state ? this.state.currentPlayerId : undefined;

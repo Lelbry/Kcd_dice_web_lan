@@ -5,7 +5,8 @@ import {
   ServerMsg,
   ClientMsg,
   validateHello,
-  validateStartGame,
+  validateSettings,
+  validateSetReady,
   validateSelection,
   validateSetProfile,
   validateLoadout,
@@ -15,12 +16,14 @@ import {
 } from './protocol.js';
 import { rollBotPersona, moodLabel, generateBotLoadout } from './bot.js';
 import { DICE_TYPES_MAP, DEFAULT_LOADOUT, rollWeighted, rollWeightsFor, sanitizeLoadout } from './engine/dice-types.js';
-import { BADGES, BADGES_MAP, DEFAULT_BADGE, canHoldWithBadge, activationBlocker } from './engine/badges.js';
+import { BADGES, BADGES_MAP, DEFAULT_BADGE, DEFAULT_BADGE_TIER, canHoldWithBadge, activationBlocker } from './engine/badges.js';
 
 const FARKLE_PASS_DELAY_MS = 3500;
 // A player holding a resurrection charge gets extra time to decide whether to spend it.
 const FARKLE_RESCUE_DELAY_MS = 6000;
 const RECONNECT_GRACE_MS = 60_000;
+// Two humans both ready: a short countdown so either can still back out. With a bot it starts at once.
+const START_COUNTDOWN_MS = 3000;
 const HISTORY_LIMIT = 50;
 const MAX_PLAYERS = 2;
 
@@ -43,9 +46,18 @@ function rollDiceWeighted(typeIds) {
 }
 
 export class GameRoom {
-  constructor({ farklePassDelayMs = FARKLE_PASS_DELAY_MS, farkleRescueDelayMs = FARKLE_RESCUE_DELAY_MS } = {}) {
+  constructor({
+    farklePassDelayMs = FARKLE_PASS_DELAY_MS,
+    farkleRescueDelayMs = FARKLE_RESCUE_DELAY_MS,
+    startCountdownMs = START_COUNTDOWN_MS,
+  } = {}) {
     this.farklePassDelayMs = farklePassDelayMs;
     this.farkleRescueDelayMs = farkleRescueDelayMs;
+    this.startCountdownMs = startCountdownMs;
+    // Shared by both players: any of them may change these in the lobby, which clears everyone's ready.
+    this.settings = { mode: DEFAULT_GAME_MODE, targetScore: GAME_MODES[DEFAULT_GAME_MODE].defaultTarget, tier: DEFAULT_BADGE_TIER };
+    this.startTimer = null;
+    this.startAt = null;
     this.phase = 'lobby';
     this.gameMode = DEFAULT_GAME_MODE;
     this.targetScore = DEFAULT_TARGET;
@@ -104,7 +116,7 @@ export class GameRoom {
       existing.connected = true;
       if (name) existing.name = name;
       if (color) existing.color = color;
-      this._broadcastState();
+      this._lobbyChanged();
       this._sendTo(existing, { type: ServerMsg.EVENT, payload: { type: 'reconnected', playerId: existing.id } });
       return { player: existing, isNew: false };
     }
@@ -125,9 +137,10 @@ export class GameRoom {
       color: color || DEFAULT_DICE_COLOR,
       loadout: [...DEFAULT_LOADOUT],
       badge: DEFAULT_BADGE,
+      ready: false,
     };
     this.players.push(player);
-    this._broadcastState();
+    this._lobbyChanged();
     return { player, isNew: true };
   }
 
@@ -154,9 +167,10 @@ export class GameRoom {
       color: persona.color || DEFAULT_DICE_COLOR,
       loadout: [...DEFAULT_LOADOUT],
       badge: DEFAULT_BADGE,
+      ready: true, // a bot has nothing to choose
     };
     this.players.push(bot);
-    this._broadcastState();
+    this._lobbyChanged();
     return { ok: true, bot };
   }
 
@@ -164,13 +178,11 @@ export class GameRoom {
   removeBot() {
     if (this.phase !== 'lobby') return { ok: false, error: 'not_in_lobby' };
     const before = this.players.length;
+    // Ids stay as they are: the client learns its id once, from the 'joined' event.
     this.players = this.players.filter((p) => !p.isBot);
-    // Переиндексировать оставшихся игроков (id pX по позиции).
-    this.players.forEach((p, idx) => {
-      p.id = `p${idx}`;
-    });
     if (this.players.length !== before) {
-      this._broadcastState();
+      for (const p of this.players) p.ready = false;
+      this._lobbyChanged();
       return { ok: true };
     }
     return { ok: false, error: 'no_bot' };
@@ -194,15 +206,16 @@ export class GameRoom {
     if (player.releaseTimer) clearTimeout(player.releaseTimer);
     player.releaseTimer = setTimeout(() => {
       this.players = this.players.filter((p) => p !== player);
+      for (const p of this.players) if (!p.isBot) p.ready = false;
       if (this.phase === 'playing') {
         this.phase = 'lobby';
         this.turn = this._emptyTurn();
         this.history.push({ ts: Date.now(), type: 'aborted', reason: 'player_left' });
       }
-      if (this.players.length === 0) this.onEmpty?.();
-      else this._broadcastState();
+      if (this.players.length === 0) { this._cancelCountdown(); this.onEmpty?.(); }
+      else this._lobbyChanged();
     }, RECONNECT_GRACE_MS);
-    this._broadcastState();
+    this._lobbyChanged();
   }
 
   handleMessage(player, msg) {
@@ -226,21 +239,42 @@ export class GameRoom {
     if (msg.type === ClientMsg.SET_LOADOUT) {
       const v = validateLoadout(msg.payload);
       if (!v) return this._sendError(player, 'bad_loadout');
+      if (this.phase === 'lobby' && !player.isBot && v.loadout.join(',') !== (player.loadout || []).join(',')) player.ready = false;
       player.loadout = v.loadout;
-      this._broadcastState();
+      this._lobbyChanged();
       return;
     }
 
     if (msg.type === ClientMsg.SET_BADGE) {
       const v = validateSetBadge(msg.payload);
       if (!v) return this._sendError(player, 'bad_badge');
+      if (this.phase === 'lobby' && !player.isBot && v.badgeId !== player.badge) player.ready = false;
       player.badge = v.badgeId;
-      this._broadcastState();
+      this._lobbyChanged();
       return;
     }
 
     if (this.phase === 'lobby') {
-      if (msg.type === ClientMsg.START_GAME) return this._startGame(player, msg.payload);
+      if (msg.type === ClientMsg.SET_READY) {
+        const v = validateSetReady(msg.payload);
+        if (!v) return this._sendError(player, 'bad_ready');
+        if (v.ready && this.players.length < MAX_PLAYERS) return this._sendError(player, 'need_two_players');
+        player.ready = v.ready;
+        this._lobbyChanged();
+        return;
+      }
+      if (msg.type === ClientMsg.SET_SETTINGS) {
+        const v = validateSettings(msg.payload, this.settings);
+        if (!v) return this._sendError(player, 'bad_settings');
+        const s = this.settings;
+        if (v.mode !== s.mode || v.targetScore !== s.targetScore || v.tier !== s.tier) {
+          this.settings = v;
+          for (const p of this.players) if (!p.isBot) p.ready = false;
+        }
+        this._lobbyChanged();
+        return;
+      }
+      if (msg.type === ClientMsg.START_GAME) return this._sendError(player, 'use_ready');
       if (msg.type === ClientMsg.ADD_BOT) {
         const r = this.addBot();
         if (!r.ok) return this._sendError(player, r.error || 'cannot_add_bot');
@@ -261,18 +295,8 @@ export class GameRoom {
 
     if (this.phase === 'playing') {
       if (msg.type === ClientMsg.SELECT_PREVIEW) {
-        const sel = msg.payload?.selection;
-        if (!Array.isArray(sel)) return;
-        for (const p of this.players) {
-          if (p.id !== player.id && p.connected && p.socket) {
-            try {
-              p.socket.send(JSON.stringify({
-                type: ServerMsg.EVENT,
-                payload: { type: 'select_preview', playerId: player.id, selection: sel },
-              }));
-            } catch {}
-          }
-        }
+        const sel = msg.payload && msg.payload.selection;
+        if (Array.isArray(sel)) this.relaySelectPreview(player, sel);
         return;
       }
       if (msg.type === ClientMsg.SURRENDER) {
@@ -311,18 +335,51 @@ export class GameRoom {
     }
   }
 
-  _startGame(player, payload) {
+  _canStart() {
+    return this.phase === 'lobby'
+      && this.players.length === MAX_PLAYERS
+      && this.players.every((p) => p.connected && p.ready);
+  }
+
+  _cancelCountdown() {
+    if (this.startTimer) clearTimeout(this.startTimer);
+    this.startTimer = null;
+    this.startAt = null;
+  }
+
+  // Called after anything that can change who is ready: starts, keeps or cancels the countdown, then broadcasts.
+  _lobbyChanged() {
+    if (this.phase !== 'lobby') return this._broadcastState();
+    if (!this._canStart()) {
+      this._cancelCountdown();
+      return this._broadcastState();
+    }
+    if (this.players.some((p) => p.isBot) || this.startCountdownMs <= 0) return this._startGame();
+    if (!this.startTimer) {
+      this.startAt = Date.now() + this.startCountdownMs;
+      this.startTimer = setTimeout(() => {
+        this.startTimer = null;
+        this.startAt = null;
+        if (this._canStart()) this._startGame();
+        else this._broadcastState();
+      }, this.startCountdownMs);
+    }
+    this._broadcastState();
+  }
+
+  /** Show the other player which dice `player` is picking (humans send it, bots call it before scoring). */
+  relaySelectPreview(player, selection) {
+    const sel = selection.filter((i) => Number.isInteger(i) && i >= 0 && i < this.turn.diceOnTable.length);
+    for (const p of this.players) {
+      if (p.id !== player.id) this._sendTo(p, { type: ServerMsg.EVENT, payload: { type: 'select_preview', playerId: player.id, selection: sel } });
+    }
+  }
+
+  _startGame() {
     if (this.farkleTimer) { clearTimeout(this.farkleTimer); this.farkleTimer = null; }
-    if (this.players.length < MAX_PLAYERS) {
-      return this._sendError(player, 'need_two_players');
-    }
-    if (!this.players.every((p) => p.connected)) {
-      return this._sendError(player, 'player_disconnected');
-    }
-    const v = validateStartGame(payload);
-    if (!v) return this._sendError(player, 'invalid_target');
-    this.gameMode = v.mode;
-    this.targetScore = v.targetScore;
+    this._cancelCountdown();
+    this.gameMode = this.settings.mode;
+    this.targetScore = this.settings.targetScore;
     for (const p of this.players) p.totalScore = 0;
     // Персона бота уже выставлена в addBot или в _newGame — НЕ перерандомим здесь,
     // иначе имя в лобби сменится при старте игры (баг отчёта пользователя).
@@ -354,12 +411,12 @@ export class GameRoom {
   _newGame(player) {
     if (this.farkleTimer) { clearTimeout(this.farkleTimer); this.farkleTimer = null; }
     this.phase = 'lobby';
-    this.gameMode = DEFAULT_GAME_MODE;
     this.winnerId = null;
     this.turn = this._emptyTurn();
     for (const p of this.players) {
       p.totalScore = 0;
       p.gameBadge = null;
+      p.ready = !!p.isBot;
     }
     this._rerollBotPersonas();
     this.history = [];
@@ -377,6 +434,7 @@ export class GameRoom {
     const id = p.isBot ? BADGES[randomInt(0, BADGES.length)].id : (BADGES_MAP[p.badge] ? p.badge : DEFAULT_BADGE);
     const badge = BADGES_MAP[id];
     p.gameBadge = id;
+    p.gameBadgeTier = this.settings.tier;
     p.badgeCharges = badge.kind === 'active' ? badge.charges : 0;
     p.shield = badge.shield || 0;
     p.totalScore += badge.startBonus || 0;
@@ -644,6 +702,8 @@ export class GameRoom {
       phase: this.phase,
       gameMode: this.gameMode,
       targetScore: this.targetScore,
+      settings: { ...this.settings },
+      countdownMs: this.startAt ? Math.max(0, this.startAt - Date.now()) : null,
       players: this.players.map((p) => {
         const base = {
           id: p.id,
@@ -656,8 +716,10 @@ export class GameRoom {
         };
         if (this.phase === 'lobby') {
           base.badge = p.isBot ? null : p.badge;
+          base.ready = !!p.ready;
         } else if (p.gameBadge) {
           base.badge = p.gameBadge;
+          base.badgeTier = p.gameBadgeTier;
           base.badgeCharges = p.badgeCharges;
           base.shield = p.shield;
           base.badgeLog = p.badgeLog;

@@ -52,6 +52,8 @@ const net = new Net(wsUrl, {
   },
   onClose: () => {
     store.setConnected(false);
+    // Rejoin the same lobby once the socket is back (onOpen sends join_lobby again).
+    lobbyJoined = false;
   },
   onState: (snapshot) => {
     store.setSnapshot(snapshot);
@@ -86,6 +88,8 @@ const net = new Net(wsUrl, {
     history.replaceState(null, '', url.toString());
     showLobbyWaiting(payload.code);
     net.send({ type: 'hello', payload: { name, clientId } });
+    // The creator brings the mode they played last; whoever joins follows the lobby's settings.
+    if (payload.action === 'created') net.send({ type: 'set_settings', payload: { mode: store._selectedMode } });
     sendLoadout();
     net.send({ type: 'set_badge', payload: { badgeId: store.myBadge } });
   },
@@ -347,11 +351,20 @@ function bindUI() {
   });
 
   // --- Game lobby ---
-  document.getElementById('start-btn').addEventListener('click', () => {
-    const targetSelect = document.getElementById('target-select');
-    const target = Number(targetSelect.value) || 2000;
-    const mode = store._selectedMode || 'classic';
-    net.send({ type: 'start_game', payload: { targetScore: target, mode } });
+  document.getElementById('ready-btn').addEventListener('click', () => {
+    const me = store.state && store.state.players.find((p) => p.id === store.myPlayerId);
+    net.send({ type: 'set_ready', payload: { ready: !(me && me.ready) } });
+  });
+
+  // Mode, target and badge tier are shared: send the change, the server's snapshot updates both players.
+  document.getElementById('mode-selector').addEventListener('change', (e) => {
+    const radio = e.target.closest('input[type="radio"]');
+    if (!radio) return;
+    if (radio.name === 'game-mode') net.send({ type: 'set_settings', payload: { mode: radio.value } });
+    if (radio.name === 'badge-tier') net.send({ type: 'set_settings', payload: { tier: radio.value } });
+  });
+  document.getElementById('target-select').addEventListener('change', (e) => {
+    net.send({ type: 'set_settings', payload: { targetScore: Number(e.target.value) } });
   });
 
   document.getElementById('lobby-players').addEventListener('click', (e) => {
