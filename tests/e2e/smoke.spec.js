@@ -256,7 +256,8 @@ async function reachOwnSixDice(page) {
   const roll = page.locator('#actions-panel [data-action="roll"]');
   const myDice = page.locator('#dice-area .die:not(.disabled)');
   for (let attempt = 0; attempt < 40; attempt++) {
-    await expect(roll).toBeEnabled({ timeout: 30000 });
+    await expect(page.locator('#finished-modal')).toBeHidden();
+    await expect(roll).toBeEnabled({ timeout: 45000 });
     await roll.click();
     try {
       await expect(myDice).toHaveCount(6, { timeout: 4000 });
@@ -281,6 +282,9 @@ for (const vp of [{ name: 'phone', width: 390, height: 844 }, { name: 'desktop',
     await pickDie(page, 0, 'lu');
     await pickDie(page, 1, 'qi');
     await pickDie(page, 2, 'fer');
+    // The longest game, so the bot cannot win while we wait for a turn with six fresh dice.
+    await page.locator('#target-select').selectOption('15000');
+    await expect(page.locator('#target-select')).toHaveValue('15000');
     await page.locator('#ready-btn').click();
     await expect(page.locator('#game')).toBeVisible();
     await reachOwnSixDice(page);
